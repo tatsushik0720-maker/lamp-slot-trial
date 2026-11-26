@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="おためしスロット">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#f2efe8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#101216" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>:root{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}*{touch-action:pan-x pan-y}</style>
+<script>
+['gesturestart', 'gesturechange', 'gestureend'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+document.addEventListener('touchmove', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+</script>
+<title>おためしスロット</title>
+<style>
+:root{
+  --bg:#f2efe8; --card:#ffffff; --ink:#1d1b18; --sub:#6b665e; --line:#ddd7cb;
+  --accent:#b3261e; --accent-ink:#ffffff; --good:#0b7a43; --bad:#b3261e; --chip:#e8e3d8;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#101216; --card:#1b1e24; --ink:#eeeae2; --sub:#a09a8f; --line:#2f333b;
+    --accent:#ff6b5e; --accent-ink:#1a0c0a; --good:#4fd18b; --bad:#ff7b6e; --chip:#272b33;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#101216; --card:#1b1e24; --ink:#eeeae2; --sub:#a09a8f; --line:#2f333b;
+  --accent:#ff6b5e; --accent-ink:#1a0c0a; --good:#4fd18b; --bad:#ff7b6e; --chip:#272b33;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+html,body{height:100%;overflow:hidden;margin:0}
+body{display:flex;flex-direction:column;background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI",sans-serif;font-size:16px;line-height:1.6;
+  user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+input,select,textarea{font-size:16px}
+button{font:inherit;color:inherit;touch-action:manipulation;cursor:pointer}
+.top{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:var(--bg)}
+.top h1{font-size:19px;margin:0;letter-spacing:.02em}
+.top button{border:1px solid var(--line);background:var(--card);border-radius:999px;min-width:44px;min-height:44px;padding:0 14px;font-size:14px}
+main{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:4px 16px 20px}
+.tabs{display:flex;background:var(--card);border-top:1px solid var(--line)}
+.tabs button{flex:1;border:0;background:none;padding:8px 0 6px;min-height:56px;font-size:12px;color:var(--sub);display:flex;flex-direction:column;align-items:center;gap:2px}
+.tabs button i{font-style:normal;font-size:20px;line-height:1.2}
+.tabs button.on{color:var(--accent);font-weight:700}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:0 0 12px}
+.card h2{font-size:17px;margin:0 0 6px}
+.note{color:var(--sub);font-size:13.5px;margin:6px 0}
+.lbl{font-size:13px;color:var(--sub);margin:12px 0 6px;font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chips button{border:1px solid var(--line);background:var(--chip);border-radius:999px;min-height:44px;padding:0 14px;font-size:15px}
+.chips button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+.btn{border:1px solid var(--line);background:var(--card);border-radius:12px;min-height:48px;padding:0 14px;font-size:15px;width:100%}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700;margin-top:14px}
+.btn.danger{color:var(--bad)}
+.btn:disabled,.mbtn:disabled{opacity:.4}
+.row{display:flex;gap:8px;margin-top:8px}
+.banner{background:var(--chip);border-radius:12px;padding:10px 12px;font-size:13.5px;margin-bottom:10px}
+
+/* 財布 */
+.wallet{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px}
+.wallet div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:6px 8px;text-align:center}
+.wallet small{display:block;font-size:11.5px;color:var(--sub)}
+.wallet b{font-size:17px;font-variant-numeric:tabular-nums}
+.plus{color:var(--good)} .minus{color:var(--bad)}
+
+/* 台（明暗に関係なく暗い色） */
+.machine{background:linear-gradient(#2a2140,#171226);border-radius:18px;padding:8px 12px 10px;color:#f3ecd8;border:2px solid #c9a24a;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.counter{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:#0c0916;border-radius:10px;padding:6px;margin-bottom:8px;text-align:center}
+.counter small{display:block;font-size:10.5px;color:#a99fc4}
+.counter b{font-size:17px;color:#ffcf5a;font-variant-numeric:tabular-nums}
+.reelBox{position:relative;background:#0c0916;border-radius:12px;padding:8px}
+#reels{display:block;width:100%;touch-action:none}
+#bonusOv{position:absolute;inset:0;border-radius:12px;background:rgba(12,9,22,.88);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:10px}
+#bonusOv .bt{font-size:26px;font-weight:900;color:#ffcf5a;letter-spacing:.06em}
+#bonusOv .bn{font-size:34px;font-weight:900;font-variant-numeric:tabular-nums}
+#bonusOv .bs{font-size:12.5px;color:#cfc6e6}
+.lampRow{display:flex;align-items:center;gap:10px;margin:8px 0}
+.lamp{flex:none;width:118px;text-align:center;border-radius:999px;padding:8px 0;font-weight:900;font-size:15px;color:#5d5672;background:#1c1630;border:2px solid #3a3157;letter-spacing:.08em}
+.lamp.on{color:#3a2500;background:radial-gradient(circle,#fff6c8,#ffc928 60%,#ff9d1e);border-color:#fff1a8;box-shadow:0 0 18px 6px rgba(255,200,60,.75);animation:pulse .7s ease-in-out infinite alternate}
+@keyframes pulse{from{box-shadow:0 0 10px 3px rgba(255,200,60,.55)}to{box-shadow:0 0 22px 9px rgba(255,200,60,.9)}}
+#winMsg{flex:1;font-size:14px;min-height:22px;color:#ffe9a8;font-weight:700}
+.stops{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 8px}
+.mbtn{border:0;border-radius:14px;min-height:54px;font-weight:800;font-size:15px;color:#1b1430;background:linear-gradient(#ffe08a,#e2a92e);box-shadow:0 3px 0 #8a6412}
+.mbtn:active:not(:disabled){transform:translateY(2px);box-shadow:0 1px 0 #8a6412}
+.mbtn small{display:block;font-size:11px;font-weight:600}
+.mbtn.bet{background:linear-gradient(#bfe3ff,#6fb4ea);box-shadow:0 3px 0 #2c6393;flex:1}
+.mbtn.lever{background:linear-gradient(#d43a2c,#b3261e);box-shadow:0 3px 0 #74160f;color:#fff;flex:1.4;font-size:17px}
+.mbtn.next{outline:3px solid #fff;outline-offset:2px}
+.hint{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 12px;font-size:14px;margin-top:8px;min-height:44px;display:flex;align-items:center}
+
+/* 一覧・結果 */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.grid2 div{background:var(--chip);border-radius:10px;padding:8px 10px}
+.grid2 small{display:block;font-size:12px;color:var(--sub)}
+.grid2 b{font-size:16px;font-variant-numeric:tabular-nums}
+.big{font-size:28px;font-weight:900;font-variant-numeric:tabular-nums;margin:4px 0}
+#graph{display:block;width:100%;height:170px;margin-top:10px}
+.hist div{display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0}
+.hist span{flex:none;width:104px;color:var(--sub)}
+.hist i{display:block;height:14px;border-radius:4px;background:var(--accent);min-width:2px}
+.hist i.w{background:var(--good)}
+.hist em{font-style:normal;font-variant-numeric:tabular-nums}
+.log{display:flex;justify-content:space-between;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);font-size:14px}
+.log:last-child{border-bottom:0}
+.log small{display:block;color:var(--sub);font-size:12.5px}
+.log b{font-variant-numeric:tabular-nums;white-space:nowrap}
+.opt{display:flex;align-items:center;justify-content:space-between;width:100%;border:0;background:none;padding:12px 0;border-bottom:1px solid var(--line);text-align:left;min-height:48px;font-size:15.5px}
+.opt:last-of-type{border-bottom:0}
+.opt em{font-style:normal;color:var(--accent);font-weight:800}
+table{border-collapse:collapse;width:100%;font-size:14px}
+td,th{border-bottom:1px solid var(--line);padding:6px 4px;text-align:left}
+td:last-child,th:last-child{text-align:right}
+
+#sheetWrap{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;z-index:20}
+#sheet{background:var(--card);color:var(--ink);width:100%;max-height:88%;overflow-y:auto;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+#sheet h2{margin:0 0 8px;font-size:18px}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;transition-duration:.01s!important}}
+</style>
+<style>
+html{position:fixed;top:0;right:0;bottom:0;left:0;height:auto;padding:0;overflow:hidden}
+body{position:absolute;top:0;right:0;bottom:0;left:0;height:auto;padding-top:env(safe-area-inset-top,0px);overflow:hidden}
+.tabs{padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (display-mode: standalone) {
+  html{position:static;height:100lvh;overflow:visible}
+  body{position:static;height:100lvh;overflow:visible}
+  #sheetWrap{bottom:auto;height:100lvh}
+  .top{padding-top:10px}
+}
+</style>
+
+</head>
+<body>
+
+
+<div class="top">
+  <h1>おためしスロット</h1>
+  <button data-act="help">あそびかた</button>
+</div>
+
+<main>
+  <div id="bkNote" class="banner" hidden>最後のバックアップから30日たちました。「設定」から保存できます。</div>
+
+  <section id="pg-play">
+    <div id="startCard" class="card">
+      <h2>お店に行くつもりで打つ</h2>
+      <p class="note">持っていくお金を決めて、1回ずつ打ちます。本物のお金は動きません。</p>
+      <div class="lbl">持ち金</div>
+      <div class="chips" id="stMoney"></div>
+      <div class="lbl">台の設定</div>
+      <div class="chips" id="stSet"></div>
+      <p class="note" id="stSetNote"></p>
+      <button class="btn primary" data-act="start">この条件で打ちはじめる</button>
+    </div>
+
+    <div id="playArea" hidden>
+      <div class="wallet">
+        <div><small>財布</small><b id="wMoney">0円</b></div>
+        <div><small>メダル</small><b id="wMedals">0枚</b></div>
+        <div><small>いまの収支</small><b id="wNet">0円</b></div>
+      </div>
+      <div class="machine">
+        <div class="counter">
+          <div><small>BIG</small><b id="cBig">0</b></div>
+          <div><small>REG</small><b id="cReg">0</b></div>
+          <div><small>当たり後</small><b id="cSince">0</b></div>
+          <div><small>合計回転</small><b id="cGames">0</b></div>
+        </div>
+        <div class="reelBox">
+          <canvas id="reels"></canvas>
+          <div id="bonusOv" hidden><div class="bt" id="bonusT"></div><div class="bn" id="bonusN"></div><div class="bs" id="bonusS"></div></div>
+        </div>
+        <div class="lampRow"><div id="lamp" class="lamp">★ あたり ★</div><div id="winMsg"></div></div>
+        <div class="stops">
+          <button class="mbtn" data-stop="0">とめる</button>
+          <button class="mbtn" data-stop="1">とめる</button>
+          <button class="mbtn" data-stop="2">とめる</button>
+        </div>
+        <div class="row">
+          <button class="mbtn bet" id="btnBet">MAX BET<small>メダルを3枚入れる</small></button>
+          <button class="mbtn lever" id="btnLever">レバー</button>
+        </div>
+      </div>
+      <div id="hint" class="hint"></div>
+      <div class="row">
+        <button class="btn" id="btnLend" data-act="lend">1,000円で46枚借りる</button>
+        <button class="btn" data-act="quit">やめて精算する</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="pg-fast" hidden>
+    <div class="card">
+      <h2>早送りで1日分を見る</h2>
+      <p class="note">同じ抽選を一瞬で回して、結果だけ見ます。メダルがなくなるたびに1,000円ずつ借り、持ち金が尽きるか、決めた回転数に届いたら終わりです。</p>
+      <div class="lbl">持ち金</div><div class="chips" id="ffMoney"></div>
+      <div class="lbl">台の設定</div><div class="chips" id="ffSet"></div>
+      <div class="lbl">回す回数</div><div class="chips" id="ffGames"></div>
+      <p class="note" id="ffNote"></p>
+      <button class="btn primary" data-act="ff1">1回やってみる</button>
+      <button class="btn" style="margin-top:8px" data-act="ff100">同じ条件で100回やってみる</button>
+    </div>
+    <div id="ffOut"></div>
+  </section>
+
+  <section id="pg-log" hidden><div id="logOut"></div></section>
+  <section id="pg-set" hidden><div id="setOut"></div></section>
+</main>
+
+<nav class="tabs">
+  <button data-tab="play" class="on"><i>🎰</i>打つ</button>
+  <button data-tab="fast"><i>⏩</i>早送り</button>
+  <button data-tab="log"><i>📒</i>記録</button>
+  <button data-tab="set"><i>⚙️</i>設定</button>
+</nav>
+
+<div id="sheetWrap" hidden><div id="sheet"></div></div>
+<input type="file" id="fileIn" accept="application/json,.json" hidden>
+
+<script>
+"use strict";
+/* ===== 数値（出典は設定画面の「数値について」） ===== */
+const BIG_P=[273.1,269.7,269.7,259.0,259.0,255.0];
+const REG_P=[439.8,399.6,331.0,315.1,255.0,255.0];
+const GRAPE_P=[6.02,6.02,6.02,6.02,6.02,5.78];
+const REPLAY_P=7.3, CHERRY_P=33, BELL_P=1000;      // この3つは目安
+const PAY={G:8,C:2,L:14}, BIG_NET=240, REG_NET=96;  // 当たりの枚数は目安
+const PRE_LAMP=0.25;                                 // レバーで光る割合（自分で決めた値）
+const LEND_YEN=1000, LEND_MEDALS=46, YEN_PER_MEDAL=20, GAMES_PER_HOUR=700;
+const OMAKASE_W=[40,25,15,10,6,4];                   // おまかせの設定の出やすさ（仮定）
+const KEY="lamp-slot-trial-v1";
+const ROLE_NAME={G:"ぶどう",C:"チェリー",L:"ベル",R:"リプレイ"};
+
+/* ===== 抽選 ===== */
+function draw(setting,pending,rnd){
+  const s=setting-1; let r=rnd();
+  const pb=1/BIG_P[s], pr=1/REG_P[s];
+  if(r<pb) return pending?"N":"BIG"; r-=pb;
+  if(r<pr) return pending?"N":"REG"; r-=pr;
+  if(r<1/GRAPE_P[s]) return "G"; r-=1/GRAPE_P[s];
+  if(r<1/REPLAY_P) return "R"; r-=1/REPLAY_P;
+  if(r<1/CHERRY_P) return "C"; r-=1/CHERRY_P;
+  if(r<1/BELL_P) return "L";
+  return "N";
+}
+function pickOmakase(){
+  let r=Math.random()*100;
+  for(let i=0;i<6;i++){ if(r<OMAKASE_W[i]) return i+1; r-=OMAKASE_W[i]; }
+  return 1;
+}
+function simulate(opt){
+  const setting=opt.setting;
+  let money=opt.money, medals=0, invest=0, games=0, big=0, reg=0, since=0, maxHama=0, pending=null, replay=false, minNet=0;
+  const step=Math.max(1,Math.floor(opt.maxGames/240)), trail=[0];
+  while(games<opt.maxGames){
+    if(!replay){
+      if(medals<3){
+        if(money>=LEND_YEN){ money-=LEND_YEN; invest+=LEND_YEN; medals+=LEND_MEDALS; }
+        else break;
+      }
+      medals-=3;
+    }
+    replay=false; games++; since++;
+    const f=draw(setting,pending,Math.random); let hit=null;
+    if(f==="BIG"||f==="REG"){ pending=f; if(Math.random()<PRE_LAMP) hit=f; }
+    else if(f==="N"){ if(pending) hit=pending; }
+    else if(f==="R") replay=true;
+    else medals+=PAY[f];
+    if(hit){
+      medals+= hit==="BIG"?BIG_NET:REG_NET;
+      if(hit==="BIG") big++; else reg++;
+      if(since>maxHama) maxHama=since; since=0; pending=null;
+    }
+    const net=medals*YEN_PER_MEDAL-invest;
+    if(net<minNet) minNet=net;
+    if(games%step===0) trail.push(net);
+  }
+  if(since>maxHama) maxHama=since;
+  const back=medals*YEN_PER_MEDAL;
+  return {setting,invest,medals,back,net:back-invest,games,big,reg,maxHama,minNet,trail,broke:games<opt.maxGames};
+}
+
+/* ===== リール ===== */
+const N=21;
+const STRIPS=["GRBCLGRSBGRLCBGRSLGRS","BGSRLGCRBGSRLGBRSGCRL","GLRBGSRLGCRBGSRLGBRSC"].map(s=>s.split(""));
+const TARGET={BIG:"SSS",REG:"SSB",G:"GGG",R:"RRR",L:"LLL"};
+function sym(r,i){ return STRIPS[r][((Math.round(i)%N)+N)%N]; }
+function winOf(c){
+  if(c[0]==="S"&&c[1]==="S"&&c[2]==="S") return "BIG";
+  if(c[0]==="S"&&c[1]==="S"&&c[2]==="B") return "REG";
+  if(c[0]===c[1]&&c[1]===c[2]&&"GRL".indexOf(c[0])>=0) return c[0];
+  return null;
+}
+function leftCherry(p){ return sym(0,p-1)==="C"||sym(0,p)==="C"||sym(0,p+1)==="C"; }
+/* 押した位置 base から maxSlip コマまでの中で、止める位置を決める */
+function chooseStop(reel,base,flag,stops,maxSlip){
+  let best=0,bestScore=-Infinity;
+  for(let k=0;k<=maxSlip;k++){
+    const p=base+k, s=sym(reel,p); let sc=0;
+    if(reel===0){ const ch=leftCherry(p); if(ch&&flag!=="C") sc-=1e6; else if(ch) sc+=10; }
+    const cs=[0,1,2].map(i=>i===reel?s:(stops[i]==null?null:sym(i,stops[i])));
+    if(cs[0]&&cs[1]&&cs[2]){ const w=winOf(cs); if(w&&w!==flag) sc-=1e6; }
+    if(TARGET[flag]&&TARGET[flag][reel]===s) sc+=10;
+    if(sc>bestScore){ bestScore=sc; best=k; }
+  }
+  return base+best;
+}
+
+/* ===== 保存 ===== */
+const isInt=(v,min,max)=>Number.isFinite(v)&&Math.floor(v)===v&&v>=min&&v<=max;
+function validRec(r){
+  return r&&typeof r==="object"&&Number.isFinite(r.t)&&(r.mode==="play"||r.mode==="fast")&&isInt(r.setting,1,6)
+    &&isInt(r.invest,0,1e8)&&isInt(r.medals,0,1e8)&&Number.isFinite(r.net)&&isInt(r.games,0,1e8)
+    &&isInt(r.big,0,1e6)&&isInt(r.reg,0,1e6)&&isInt(r.maxHama,0,1e8)&&Number.isFinite(r.minNet);
+}
+function validSession(s){
+  return s&&typeof s==="object"&&isInt(s.money,0,1e8)&&isInt(s.startMoney,0,1e8)&&isInt(s.invest,0,1e8)&&isInt(s.medals,0,1e8)
+    &&isInt(s.setting,1,6)&&isInt(s.games,0,1e8)&&isInt(s.since,0,1e8)&&isInt(s.big,0,1e6)&&isInt(s.reg,0,1e6)
+    &&isInt(s.maxHama,0,1e8)&&Number.isFinite(s.minNet)&&(s.pending===null||s.pending==="BIG"||s.pending==="REG")
+    &&typeof s.lamp==="boolean"&&(s.bet===0||s.bet===3)&&typeof s.omakase==="boolean"&&typeof s.replay==="boolean"
+    &&Array.isArray(s.reels)&&s.reels.length===3&&s.reels.every(v=>isInt(v,0,N-1))&&Number.isFinite(s.startedAt);
+}
+function sanitize(raw){
+  const d={v:1,theme:"auto",assist:true,sound:true,vib:true,session:null,history:[],lastBackup:0,created:Date.now()};
+  if(!raw||typeof raw!=="object") return d;
+  if(raw.theme==="auto"||raw.theme==="light"||raw.theme==="dark") d.theme=raw.theme;
+  ["assist","sound","vib"].forEach(k=>{ if(typeof raw[k]==="boolean") d[k]=raw[k]; });
+  if(Number.isFinite(raw.lastBackup)) d.lastBackup=raw.lastBackup;
+  if(Number.isFinite(raw.created)) d.created=raw.created;
+  if(Array.isArray(raw.history)) d.history=raw.history.filter(validRec).slice(-300).map(r=>({t:r.t,mode:r.mode,setting:r.setting,omakase:!!r.omakase,invest:r.invest,medals:r.medals,net:r.net,games:r.games,big:r.big,reg:r.reg,maxHama:r.maxHama,minNet:r.minNet}));
+  if(validSession(raw.session)) d.session=raw.session;
+  return d;
+}
+let S, saveWarned=false;
+function load(){ let raw=null; try{ raw=JSON.parse(localStorage.getItem(KEY)); }catch(_){ } S=sanitize(raw); }
+function save(){
+  try{ localStorage.setItem(KEY,JSON.stringify(S)); }
+  catch(_){ if(!saveWarned){ saveWarned=true; toast("保存できませんでした。空き容量を確かめてください"); } }
+}
+
+/* ===== 小物 ===== */
+const $=id=>document.getElementById(id);
+const fmt=n=>Math.abs(Math.round(n)).toLocaleString("ja-JP");
+const yen=n=>(n<0?"−":"")+fmt(n)+"円";
+const syen=n=>(n>0?"＋":n<0?"−":"")+fmt(n)+"円";
+const cls=n=>n>0?"plus":n<0?"minus":"";
+function hours(g){ const m=Math.max(1,Math.round(g/GAMES_PER_HOUR*60)); return m<60?("約"+m+"分"):("約"+Math.floor(m/60)+"時間"+(m%60?(m%60)+"分":"")); }
+function dateStr(t){ const d=new Date(t); return (d.getMonth()+1)+"/"+d.getDate()+" "+d.getHours()+":"+String(d.getMinutes()).padStart(2,"0"); }
+let toastTimer=0;
+function toast(msg){ const h=$("winMsg"); if(tab!=="play"||!S.session){ openSheet("<p>"+msg+"</p><button class='btn' data-act='close'>とじる</button>"); return; } h.textContent=msg; clearTimeout(toastTimer); toastTimer=setTimeout(()=>{ if(h.textContent===msg) h.textContent=""; },2500); }
+function applyTheme(){
+  const t=S.theme, el=document.documentElement;
+  if(t==="light"||t==="dark") el.setAttribute("data-theme",t); else el.removeAttribute("data-theme");
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m=>{
+    const dark=t==="dark"||(t!=="light"&&/dark/.test(m.media||""));
+    m.setAttribute("content",dark?"#101216":"#f2efe8");
+  });
+}
+function vib(p){ if(S.vib&&navigator.vibrate){ try{ navigator.vibrate(p); }catch(_){ } } }
+
+/* ===== 音 ===== */
+let AC=null;
+function audio(){
+  if(AC) return AC;
+  try{ const C=window.AudioContext||window.webkitAudioContext; if(C) AC=new C(); }catch(_){ }
+  return AC;
+}
+function tone(freq,dur,type,vol,delay){
+  if(!S.sound) return; const a=audio(); if(!a) return;
+  try{
+    if(a.state==="suspended") a.resume();
+    const t=a.currentTime+(delay||0), o=a.createOscillator(), g=a.createGain();
+    o.type=type||"sine"; o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol||0.12,t+0.01); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
+    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+dur+0.02);
+  }catch(_){ }
+}
+const SE={
+  bet(){ tone(660,0.06,"square",0.05); tone(880,0.06,"square",0.05,0.07); },
+  lever(){ tone(140,0.12,"sawtooth",0.1); },
+  stop(){ tone(200,0.05,"square",0.08); },
+  pay(n){ for(let i=0;i<Math.min(n,8);i++) tone(1200,0.04,"triangle",0.07,i*0.05); },
+  replay(){ tone(784,0.08,"triangle",0.08); tone(988,0.1,"triangle",0.08,0.09); },
+  lamp(){ [784,1047,1319,1568,2093].forEach((f,i)=>tone(f,0.22,"triangle",0.13,i*0.07)); },
+  bonus(bigOne){ const m=bigOne?[523,659,784,659,784,1047,784,1047,1319,1568]:[523,659,784,1047,784,1047]; m.forEach((f,i)=>tone(f,0.18,"square",0.07,i*0.14)); },
+  lend(){ tone(440,0.05,"triangle",0.08); tone(554,0.08,"triangle",0.08,0.06); }
+};
+document.addEventListener("visibilitychange",()=>{
+  if(!AC) return;
+  try{ if(document.hidden) AC.suspend(); else AC.resume(); }catch(_){ }
+});
+
+/* ===== 打つ画面 ===== */
+let tab="play";
+let phase="idle";               // idle / ready / spin / bonus
+let game=null;                  // 回っている間だけ使う
+const reels=[{pos:0,spin:false,target:null},{pos:0,spin:false,target:null},{pos:0,spin:false,target:null}];
+let flashUntil=0;
+const pick={money:10000,setting:0};
+const MONEY_CH=[5000,10000,20000,30000];
+
+function chipHtml(list,cur,key,label){ return list.map(v=>"<button data-chip='"+key+"' data-v='"+v+"' class='"+(v===cur?"on":"")+"'>"+label(v)+"</button>").join(""); }
+const setLabel=v=>v===0?"おまかせ":"設定"+v;
+function renderStart(){
+  $("stMoney").innerHTML=chipHtml(MONEY_CH,pick.money,"pm",v=>fmt(v)+"円");
+  $("stSet").innerHTML=chipHtml([0,1,2,3,4,5,6],pick.setting,"ps",setLabel);
+  $("stSetNote").textContent=pick.setting===0
+    ?"おまかせは、設定を隠して打ちます。お店と同じで、低い設定が出やすくなっています。精算のときに答えが出ます。"
+    :"設定は1がいちばん当たりにくく、6がいちばん当たりやすい台です。";
+}
+function netNow(){ const s=S.session; return (s.medals+s.bet)*YEN_PER_MEDAL-s.invest; }
+function renderPlay(){
+  const s=S.session;
+  $("startCard").hidden=!!s; $("playArea").hidden=!s;
+  if(!s){ renderStart(); return; }
+  $("wMoney").textContent=yen(s.money);
+  $("wMedals").textContent=fmt(s.medals)+"枚";
+  const n=netNow(); const wn=$("wNet"); wn.textContent=syen(n); wn.className=cls(n);
+  $("cBig").textContent=s.big; $("cReg").textContent=s.reg; $("cSince").textContent=s.since; $("cGames").textContent=s.games;
+  $("lamp").classList.toggle("on",s.lamp);
+  const canBet=phase==="idle"&&s.medals>=3, canLever=phase==="ready";
+  $("btnBet").disabled=!canBet; $("btnLever").disabled=!canLever;
+  $("btnBet").classList.toggle("next",canBet); $("btnLever").classList.toggle("next",canLever);
+  let nextStop=-1;
+  if(phase==="spin"){ for(let i=0;i<3;i++){ if(reels[i].spin&&reels[i].target==null){ nextStop=i; break; } } }
+  document.querySelectorAll("[data-stop]").forEach(b=>{
+    const i=+b.dataset.stop;
+    b.disabled=!(phase==="spin"&&reels[i].spin&&reels[i].target==null);
+    b.classList.toggle("next",i===nextStop);
+  });
+  $("btnLend").disabled=!(s.money>=LEND_YEN&&phase!=="bonus");
+  let h;
+  if(phase==="bonus") h="当たりのメダルを受け取っています。";
+  else if(phase==="spin") h=s.lamp?(S.assist?"7がそろうまで回します。ぶどうなどが出た回は、次のゲームに持ち越しです。":"7を狙って止めてください。そろうまで当たりは消えません。"):"左から順にボタンを押して止めます。";
+  else if(phase==="ready") h=s.replay?"リプレイです。メダルを入れずに、もう1回レバーを押せます。":"レバーを押すと回ります。当たりかどうかは、この瞬間に決まります。";
+  else if(s.medals<3&&s.money>=LEND_YEN) h="メダルがありません。「1,000円で46枚借りる」を押します。";
+  else if(s.medals<3) h="お金もメダルもなくなりました。「やめて精算する」で結果を見ます。";
+  else if(s.lamp) h="ランプが光りました。当たりです。MAX BET を押して、7がそろうまで回します。";
+  else h="MAX BET でメダルを3枚入れます。";
+  $("hint").textContent=h;
+}
+function startSession(){
+  const omakase=pick.setting===0;
+  S.session={money:pick.money,startMoney:pick.money,invest:0,medals:0,setting:omakase?pickOmakase():pick.setting,omakase,
+    games:0,since:0,big:0,reg:0,maxHama:0,minNet:0,pending:null,lamp:false,bet:0,replay:false,
+    reels:[Math.floor(Math.random()*N),Math.floor(Math.random()*N),Math.floor(Math.random()*N)],startedAt:Date.now()};
+  phase="idle"; syncReels(); save(); renderPlay(); resizeReels();
+}
+function syncReels(){ const s=S.session; for(let i=0;i<3;i++){ reels[i].pos=s?s.reels[i]:0; reels[i].spin=false; reels[i].target=null; } }
+function lend(){
+  const s=S.session; if(!s||s.money<LEND_YEN||phase==="bonus") return;
+  s.money-=LEND_YEN; s.invest+=LEND_YEN; s.medals+=LEND_MEDALS;
+  if(netNow()<s.minNet) s.minNet=netNow();
+  SE.lend(); save(); renderPlay();
+}
+function bet(){
+  const s=S.session; if(!s||phase!=="idle"||s.medals<3) return;
+  s.medals-=3; s.bet=3; phase="ready"; $("winMsg").textContent=""; SE.bet(); save(); renderPlay();
+}
+function lever(){
+  const s=S.session; if(!s||phase!=="ready") return;
+  s.games++; s.since++;
+  if(s.pending&&!s.lamp) s.lamp=true;
+  const f=draw(s.setting,s.pending,Math.random);
+  game={eff:"N",lightAfter:false};
+  if(f==="BIG"||f==="REG"){
+    s.pending=f;
+    if(Math.random()<PRE_LAMP){ s.lamp=true; game.eff=f; SE.lamp(); vib([80,40,80]); }
+    else game.lightAfter=true;
+  }else if(f==="N"){ if(s.pending&&s.lamp) game.eff=s.pending; }
+  else game.eff=f;
+  for(let i=0;i<3;i++){ reels[i].spin=true; reels[i].target=null; }
+  phase="spin"; SE.lever(); renderPlay();
+}
+function stopReel(i){
+  if(phase!=="spin"||!reels[i].spin||reels[i].target!=null) return;
+  const stops=reels.map(r=>r.spin?null:r.pos);
+  reels[i].target=chooseStop(i,Math.ceil(reels[i].pos),game.eff,stops,S.assist?N-1:4);
+  renderPlay();
+}
+function finishGame(){
+  const s=S.session, p=reels.map(r=>r.pos), w=winOf([sym(0,p[0]),sym(1,p[1]),sym(2,p[2])]);
+  s.reels=p.slice(); s.bet=0; s.replay=false;
+  let msg="";
+  if(w==="BIG"||w==="REG"){ startBonus(w); return; }
+  if(w==="G"||w==="L"){ s.medals+=PAY[w]; msg=ROLE_NAME[w]+"　＋"+PAY[w]+"枚"; SE.pay(PAY[w]); flashUntil=performance.now()+700; }
+  else if(w==="R"){ s.replay=true; s.bet=3; msg="リプレイ（もう1回）"; SE.replay(); flashUntil=performance.now()+700; }
+  else if(game.eff==="C"&&leftCherry(p[0])){ s.medals+=PAY.C; msg="チェリー　＋"+PAY.C+"枚"; SE.pay(PAY.C); }
+  if(game.lightAfter){ s.lamp=true; msg="ランプが光りました！"; SE.lamp(); vib([80,40,80]); }
+  if(netNow()<s.minNet) s.minNet=netNow();
+  phase=s.replay?"ready":"idle"; game=null;
+  $("winMsg").textContent=msg; save(); renderPlay();
+}
+let bonusTimer=0;
+function startBonus(type){
+  const s=S.session, gain=type==="BIG"?BIG_NET:REG_NET;
+  s.lamp=false; s.pending=null; if(type==="BIG") s.big++; else s.reg++;
+  if(s.since>s.maxHama) s.maxHama=s.since;
+  const waited=s.since; s.since=0; s.medals+=gain; game=null; phase="bonus"; save();
+  SE.bonus(type==="BIG"); vib(200); flashUntil=performance.now()+1500;
+  $("bonusT").textContent=type==="BIG"?"BIG BONUS":"REGULAR BONUS";
+  $("bonusS").textContent=waited+"回転めの当たり。本物の台では、ここから"+(type==="BIG"?"1分半":"30秒")+"ほどかけてメダルを出します。";
+  $("bonusOv").hidden=false; $("winMsg").textContent="";
+  const t0=performance.now(), dur=2600;
+  (function tick(now){
+    const k=Math.min(1,(now-t0)/dur); $("bonusN").textContent="＋"+Math.round(gain*k)+"枚";
+    if(k<1&&phase==="bonus") bonusTimer=requestAnimationFrame(tick);
+  })(t0);
+  renderPlay();
+  setTimeout(()=>{ if(phase!=="bonus") return; $("bonusOv").hidden=true; phase="idle"; $("winMsg").textContent=(type==="BIG"?"BIG":"REG")+"　＋"+gain+"枚"; renderPlay(); },dur+900);
+}
+function settle(){
+  const s=S.session; if(!s) return;
+  const medals=s.medals+s.bet, back=medals*YEN_PER_MEDAL, net=back-s.invest;
+  const rec={t:Date.now(),mode:"play",setting:s.setting,omakase:s.omakase,invest:s.invest,medals,net,games:s.games,big:s.big,reg:s.reg,maxHama:Math.max(s.maxHama,s.since),minNet:Math.min(s.minNet,net)};
+  if(s.games>0) S.history.push(rec);
+  S.session=null; phase="idle"; game=null; cancelAnimationFrame(bonusTimer); $("bonusOv").hidden=true;
+  save(); renderPlay();
+  openSheet("<h2>精算</h2>"+resultHtml(rec,true)+"<button class='btn primary' data-act='close'>とじる</button>");
+}
+function resultHtml(r,reveal){
+  const back=r.medals*YEN_PER_MEDAL;
+  return "<div class='big "+cls(r.net)+"'>"+syen(r.net)+"</div>"
+    +"<div class='grid2'>"
+    +"<div><small>使ったお金</small><b>"+yen(r.invest)+"</b></div>"
+    +"<div><small>戻ったお金（"+fmt(r.medals)+"枚）</small><b>"+yen(back)+"</b></div>"
+    +"<div><small>回した回数</small><b>"+fmt(r.games)+"回転</b></div>"
+    +"<div><small>本物の台なら</small><b>"+hours(r.games)+"</b></div>"
+    +"<div><small>BIG / REG</small><b>"+r.big+"回 / "+r.reg+"回</b></div>"
+    +"<div><small>いちばん長いハマり</small><b>"+fmt(r.maxHama)+"回転</b></div>"
+    +"<div><small>いちばん負けていた時</small><b>"+yen(r.minNet)+"</b></div>"
+    +"<div><small>台の設定"+(r.omakase&&reveal?"（答え）":"")+"</small><b>設定"+r.setting+"</b></div>"
+    +"</div><p class='note'>メダルは1枚20円で計算しています。実際のお店では、交換のときに1枚あたりの金額が下がることがあります。</p>";
+}
+
+/* ===== リールの絵 ===== */
+const cv=$("reels"), ctx=cv.getContext("2d");
+let RW=300, RH=210, DPR=1;
+function resizeReels(){
+  const box=cv.parentElement; const w=(box.clientWidth||320)-16; if(w<=0) return;
+  RW=w; RH=Math.round(Math.min(78,(w-12)/3*0.74)*3);
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  cv.style.height=RH+"px"; cv.width=Math.round(RW*DPR); cv.height=Math.round(RH*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener("resize",resizeReels);
+function rr(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function drawSym(s,x,y,h){
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  if(s==="S"){
+    ctx.font="italic 900 "+Math.round(h*0.86)+"px Georgia,'Times New Roman',serif";
+    ctx.lineWidth=4; ctx.strokeStyle="#fff3c4"; ctx.strokeText("7",x,y+h*0.04);
+    ctx.fillStyle="#d4172a"; ctx.fillText("7",x,y+h*0.04);
+  }else if(s==="B"){
+    const w=h*1.05, hh=h*0.46; rr(x-w/2,y-hh/2,w,hh,6); ctx.fillStyle="#17151f"; ctx.fill();
+    ctx.font="900 "+Math.round(h*0.3)+"px Arial,sans-serif"; ctx.fillStyle="#f4ecd8"; ctx.fillText("BAR",x,y+1);
+  }else if(s==="R"){
+    ctx.beginPath(); ctx.arc(x,y,h*0.33,0,Math.PI*2); ctx.fillStyle="#2f8fdd"; ctx.fill();
+    ctx.beginPath(); ctx.arc(x,y,h*0.24,0,Math.PI*2); ctx.fillStyle="#eaf5ff"; ctx.fill();
+    ctx.font="900 "+Math.round(h*0.17)+"px Arial,sans-serif"; ctx.fillStyle="#1b5f9c"; ctx.fillText("もう1回",x,y+1);
+  }else{
+    ctx.font=Math.round(h*0.62)+"px 'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',sans-serif";
+    ctx.fillStyle="#000"; ctx.fillText(s==="G"?"🍇":s==="C"?"🍒":"🔔",x,y+h*0.04);
+  }
+}
+function drawReels(now){
+  const gap=6, rw=(RW-gap*2)/3, ch=RH/3;
+  ctx.clearRect(0,0,RW,RH);
+  for(let r=0;r<3;r++){
+    const x=r*(rw+gap), pos=reels[r].pos, n=Math.floor(pos);
+    ctx.save(); rr(x,0,rw,RH,8); ctx.clip();
+    ctx.fillStyle="#f6f1e4"; ctx.fillRect(x,0,rw,RH);
+    for(let i=n-2;i<=n+3;i++) drawSym(sym(r,i),x+rw/2,RH/2-(i-pos)*ch,ch);
+    const g=ctx.createLinearGradient(0,0,0,RH);
+    g.addColorStop(0,"rgba(20,10,40,.45)"); g.addColorStop(0.2,"rgba(20,10,40,0)"); g.addColorStop(0.8,"rgba(20,10,40,0)"); g.addColorStop(1,"rgba(20,10,40,.45)");
+    ctx.fillStyle=g; ctx.fillRect(x,0,rw,RH);
+    ctx.restore();
+  }
+  const fl=now<flashUntil&&Math.floor(now/120)%2===0;
+  if(fl){ ctx.fillStyle="rgba(255,205,60,.35)"; ctx.fillRect(0,ch,RW,ch); }
+  ctx.strokeStyle=fl?"#ffcf3a":"rgba(200,30,45,.45)"; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,RH/2); ctx.lineTo(RW,RH/2); ctx.stroke();
+}
+const SPEED=N/0.75;
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000||0); last=now;
+  if(phase==="spin"){
+    let moving=false;
+    for(let i=0;i<3;i++){
+      const r=reels[i]; if(!r.spin) continue;
+      r.pos+=SPEED*dt;
+      if(r.target!=null&&r.pos>=r.target){ r.pos=((r.target%N)+N)%N; r.spin=false; r.target=null; SE.stop(); vib(15); renderPlay(); }
+      else moving=true;
+    }
+    if(!moving&&reels.every(r=>!r.spin)) finishGame();
+  }
+  if(tab==="play"&&S.session) drawReels(now);
+  requestAnimationFrame(loop);
+}
+document.addEventListener("visibilitychange",()=>{ last=performance.now(); });
+
+/* ===== 早送り ===== */
+const F={money:10000,setting:0,games:8000};
+let ffLast=null;
+function renderFastForm(){
+  $("ffMoney").innerHTML=chipHtml([10000,20000,30000,50000],F.money,"fm",v=>fmt(v)+"円");
+  $("ffSet").innerHTML=chipHtml([0,1,2,3,4,5,6],F.setting,"fs",setLabel);
+  $("ffGames").innerHTML=chipHtml([1000,3000,8000],F.games,"fg",v=>fmt(v)+"回転");
+  $("ffNote").textContent=fmt(F.games)+"回転は、本物の台で"+hours(F.games)+"ほどです。"+(F.games===8000?"朝から閉店まで打ち続けたくらいの量になります。":"");
+}
+function ffOnce(){
+  const r=simulate({money:F.money,setting:F.setting||pickOmakase(),maxGames:F.games});
+  const rec={t:Date.now(),mode:"fast",setting:r.setting,omakase:F.setting===0,invest:r.invest,medals:r.medals,net:r.net,games:r.games,big:r.big,reg:r.reg,maxHama:r.maxHama,minNet:r.minNet};
+  S.history.push(rec); if(S.history.length>300) S.history=S.history.slice(-300); save();
+  ffLast=r.trail;
+  $("ffOut").innerHTML="<div class='card'><h2>1回分の結果</h2>"+(r.broke?"<p class='note'>"+fmt(r.games)+"回転で持ち金がなくなりました。</p>":"")
+    +resultHtml(rec,true)+"<canvas id='graph'></canvas><p class='note'>線は収支の動きです。まん中の横線が±0円。</p></div>";
+  drawGraph(); $("ffOut").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function ffMany(){
+  const nets=[]; let win=0, broke=0, sum=0;
+  for(let i=0;i<100;i++){
+    const r=simulate({money:F.money,setting:F.setting||pickOmakase(),maxGames:F.games});
+    nets.push(r.net); sum+=r.net; if(r.net>0) win++; if(r.broke) broke++;
+  }
+  nets.sort((a,b)=>a-b);
+  const bins=[["5万円以上の負け",-Infinity,-50000],["3〜5万円の負け",-50000,-30000],["1〜3万円の負け",-30000,-10000],["1万円までの負け",-10000,0],
+    ["1万円までの勝ち",0,10000],["1〜3万円の勝ち",10000,30000],["3〜5万円の勝ち",30000,50000],["5万円以上の勝ち",50000,Infinity]];
+  const cnt=bins.map(b=>nets.filter(n=>n>=b[1]&&n<b[2]).length);
+  const mx=Math.max(1,...cnt);
+  const hist=bins.map((b,i)=>cnt[i]?"<div><span>"+b[0]+"</span><i class='"+(i>=4?"w":"")+"' style='width:"+Math.round(cnt[i]/mx*110)+"px'></i><em>"+cnt[i]+"回</em></div>":"").join("");
+  ffLast=null;
+  $("ffOut").innerHTML="<div class='card'><h2>100回やった結果</h2>"
+    +"<p class='note'>"+(F.setting?("設定"+F.setting):"おまかせ（毎回ちがう設定）")+"・持ち金"+fmt(F.money)+"円・"+fmt(F.games)+"回転まで</p>"
+    +"<div class='grid2'>"
+    +"<div><small>勝った回数</small><b>100回中 "+win+"回</b></div>"
+    +"<div><small>1回あたりの平均</small><b class='"+cls(sum/100)+"'>"+syen(sum/100)+"</b></div>"
+    +"<div><small>いちばん勝った回</small><b>"+syen(nets[99])+"</b></div>"
+    +"<div><small>いちばん負けた回</small><b>"+syen(nets[0])+"</b></div>"
+    +"<div><small>まん中の回</small><b>"+syen(nets[49])+"</b></div>"
+    +"<div><small>持ち金を使い切った</small><b>"+broke+"回</b></div>"
+    +"</div><div class='lbl'>結果のばらつき</div><div class='hist'>"+hist+"</div>"
+    +"<p class='note'>負けは持ち金までで止まります。この100回は記録に入れていません。</p></div>";
+  $("ffOut").scrollIntoView({behavior:"smooth",block:"start"});
+}
+function drawGraph(){
+  const c=$("graph"); if(!c||!ffLast) return;
+  const w=c.clientWidth, h=c.clientHeight, d=Math.min(2,window.devicePixelRatio||1);
+  if(!w) return;
+  c.width=w*d; c.height=h*d; const g=c.getContext("2d"); g.setTransform(d,0,0,d,0,0);
+  const cs=getComputedStyle(document.documentElement), t=ffLast;
+  let mn=Math.min(0,...t), mxv=Math.max(0,...t); if(mxv-mn<1000){ mxv+=500; mn-=500; }
+  const pad=6, Y=v=>pad+(h-pad*2)*(1-(v-mn)/(mxv-mn)), X=i=>t.length<2?0:i/(t.length-1)*w;
+  g.strokeStyle=cs.getPropertyValue("--line").trim()||"#ccc"; g.lineWidth=1;
+  g.beginPath(); g.moveTo(0,Y(0)); g.lineTo(w,Y(0)); g.stroke();
+  g.strokeStyle=cs.getPropertyValue("--accent").trim()||"#b3261e"; g.lineWidth=2; g.lineJoin="round";
+  g.beginPath(); t.forEach((v,i)=>{ if(i) g.lineTo(X(i),Y(v)); else g.moveTo(X(i),Y(v)); }); g.stroke();
+  g.fillStyle=cs.getPropertyValue("--sub").trim()||"#666"; g.font="11px sans-serif"; g.textBaseline="top"; g.textAlign="left";
+  g.fillText(syen(mxv),2,2); g.textBaseline="bottom"; g.fillText(syen(mn),2,h-2);
+}
+
+/* ===== 記録 ===== */
+function renderLog(){
+  const H=S.history;
+  if(!H.length){ $("logOut").innerHTML="<div class='card'><h2>記録</h2><p class='note'>まだ記録がありません。「打つ」で精算するか、「早送り」で1回やると、ここに残ります。</p></div>"; return; }
+  const sum=H.reduce((a,r)=>a+r.net,0), win=H.filter(r=>r.net>0).length;
+  $("logOut").innerHTML="<div class='card'><h2>これまでの合計</h2><div class='big "+cls(sum)+"'>"+syen(sum)+"</div>"
+    +"<p class='note'>"+H.length+"回のうち、勝ったのは"+win+"回です。</p></div>"
+    +"<div class='card'>"+H.slice().reverse().map(r=>"<div class='log'><div>"+dateStr(r.t)+"　"+(r.mode==="play"?"打つ":"早送り")
+      +"<small>設定"+r.setting+(r.omakase?"（おまかせ）":"")+"・"+fmt(r.games)+"回転・BIG"+r.big+" REG"+r.reg+"・使った"+yen(r.invest)+"</small></div><b class='"+cls(r.net)+"'>"+syen(r.net)+"</b></div>").join("")+"</div>";
+}
+
+/* ===== 設定 ===== */
+function renderSet(){
+  const th=[["auto","自動（iPhoneの設定に合わせる）"],["light","ライト（白）"],["dark","ダーク（黒）"]];
+  const onoff=v=>v?"<em>入</em>":"<span style='color:var(--sub)'>切</span>";
+  $("setOut").innerHTML="<div class='card'><h2>見た目</h2>"+th.map(t=>"<button class='opt' data-act='theme' data-v='"+t[0]+"'>"+t[1]+(S.theme===t[0]?"<em>✓</em>":"")+"</button>").join("")+"</div>"
+    +"<div class='card'><h2>打ち方</h2>"
+    +"<button class='opt' data-act='tg' data-v='assist'>絵柄を自動でそろえる"+onoff(S.assist)+"</button>"
+    +"<p class='note'>「切」にすると、本物と同じく自分で7を狙います。押した位置から4コマ先までしか止まらないので、タイミングが合わないとそろいません。当たりは、そろうまで消えません。</p>"
+    +"<button class='opt' data-act='tg' data-v='sound'>効果音"+onoff(S.sound)+"</button>"
+    +"<button class='opt' data-act='tg' data-v='vib'>振動（対応する端末だけ）"+onoff(S.vib)+"</button></div>"
+    +"<div class='card'><h2>バックアップ</h2><p class='note'>記録はこの端末の中だけにあります。ホーム画面のアイコンを消すと、記録も消えます。</p>"
+    +"<button class='btn' data-act='bkSave'>バックアップを保存</button><button class='btn' style='margin-top:8px' data-act='bkLoad'>バックアップから戻す</button>"
+    +"<p class='note'>"+(S.lastBackup?("最後の保存："+dateStr(S.lastBackup)):"まだ保存していません。")+"</p>"
+    +"<button class='btn danger' style='margin-top:8px' data-act='wipeAsk'>記録をすべて消す</button></div>"
+    +"<div class='card'><h2>数値について</h2>"
+    +"<p class='note'>このアプリは、ランプが光ったら当たりになるタイプのスロットを練習するための、オリジナルの台です。実在の機種を再現したものではありません。絵柄・ランプ・音・リールの並びは独自のものです。</p>"
+    +"<table><tr><th>設定</th><th>BIG</th><th>REG</th></tr>"+[0,1,2,3,4,5].map(i=>"<tr><td>"+(i+1)+"</td><td>1/"+BIG_P[i].toFixed(1)+"</td><td>1/"+REG_P[i].toFixed(1)+"</td></tr>").join("")+"</table>"
+    +"<p class='note'>当たりの確率は、ホールでよく見かける機種「アイムジャグラーEX」（6号機）について公表されている値を手本にしました（出典：DMMぱちタウンの機種ページ、2026年11月26日に確認）。ぶどうの確率（1/6.02、設定6だけ1/5.78）も同じ出典です。設定1のぶどうは読み取れなかったので、1/6.02 と仮定しています。</p>"
+    +"<p class='note'>次の値は目安で、公表値ではありません。リプレイ 1/7.3、チェリー 1/33（2枚）、ベル 1/1000（14枚）、BIG で増える枚数 約240枚、REG 約96枚、レバーを押した瞬間に光る割合 4回に1回、おまかせで出る設定の割合（設定1が40%、6が4%）。</p>"
+    +"<p class='note'>当たりのあとのメダルを出す時間は省いています。本物の台より、時間あたりの減り方・増え方が速く感じられます。</p>"
+    +"<p class='note'>設定1〜3は、長く打つほどお金が減るように作られています。のめり込みにはご注意ください。</p></div>";
+}
+function backupSave(){
+  const data=JSON.stringify({app:KEY,saved:Date.now(),data:S});
+  const name="otameshi-slot-backup-"+new Date().toISOString().slice(0,10)+".json";
+  const done=()=>{ S.lastBackup=Date.now(); save(); renderSet(); checkBackupNote(); };
+  let file=null; try{ file=new File([data],name,{type:"application/json"}); }catch(_){ }
+  if(file&&navigator.canShare&&navigator.canShare({files:[file]})){
+    navigator.share({files:[file],title:"おためしスロットのバックアップ"}).then(done).catch(()=>{});
+    return;
+  }
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([data],{type:"application/json"})); a.download=name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); done();
+}
+$("fileIn").addEventListener("change",e=>{
+  const f=e.target.files&&e.target.files[0]; e.target.value=""; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    let obj=null; try{ obj=JSON.parse(rd.result); }catch(_){ }
+    if(!obj||obj.app!==KEY||!obj.data||typeof obj.data!=="object"){ openSheet("<h2>戻せませんでした</h2><p>このアプリのバックアップではないようです。</p><button class='btn' data-act='close'>とじる</button>"); return; }
+    const nd=sanitize(obj.data);
+    if(!nd.history.length&&!nd.session){ openSheet("<h2>戻せませんでした</h2><p>このファイルには、読み込める記録が入っていません。今のデータはそのままです。</p><button class='btn' data-act='close'>とじる</button>"); return; }
+    restoreData=nd;
+    openSheet("<h2>バックアップから戻しますか？</h2><p>ファイルの記録は"+nd.history.length+"件です。今の記録"+S.history.length+"件と、打っている途中の台は、ファイルの中身に置き換わります。</p><button class='btn primary' data-act='restoreYes'>置き換える</button><button class='btn' style='margin-top:8px' data-act='close'>やめる</button>");
+  };
+  rd.readAsText(f);
+});
+let restoreData=null;
+function doRestore(){
+  if(!restoreData) return;
+  {
+    S=restoreData; restoreData=null; phase=S.session&&S.session.bet===3?"ready":"idle"; game=null; $("bonusOv").hidden=true;
+    syncReels(); applyTheme(); save(); renderAll();
+    openSheet("<h2>戻しました</h2><p>記録 "+S.history.length+"件を読み込みました。</p><button class='btn' data-act='close'>とじる</button>");
+  }
+}
+function checkBackupNote(){
+  const base=S.lastBackup||S.created;
+  $("bkNote").hidden=!(S.history.length>0&&Date.now()-base>30*864e5);
+}
+
+/* ===== シート ===== */
+function openSheet(html){ $("sheet").innerHTML=html; $("sheetWrap").hidden=false; $("sheet").scrollTop=0; }
+function closeSheet(){ $("sheetWrap").hidden=true; $("sheet").innerHTML=""; }
+function helpHtml(){
+  return "<h2>あそびかた</h2>"
+    +"<p>1回まわすのにメダルを3枚（60円ぶん）使います。</p>"
+    +"<p>① 「1,000円で46枚借りる」でメダルを借りる<br>② 「MAX BET」で3枚入れる<br>③ 「レバー」を押す（当たりかどうかは、ここで決まります）<br>④ 「とめる」を左から3つ押す<br>⑤ ランプが光ったら当たり。そのあと1〜3ゲームほどで7がそろいます</p>"
+    +"<table><tr><th>まん中の横1列にそろうと</th><th>もらえる</th></tr>"
+    +"<tr><td>7・7・7（BIG）</td><td>約240枚</td></tr><tr><td>7・7・BAR（REG）</td><td>約96枚</td></tr>"
+    +"<tr><td>🍇🍇🍇 ぶどう</td><td>8枚</td></tr><tr><td>🔔🔔🔔 ベル</td><td>14枚</td></tr>"
+    +"<tr><td>もう1回・もう1回・もう1回</td><td>もう1回無料</td></tr><tr><td>左の列に🍒（当選時）</td><td>2枚</td></tr></table>"
+    +"<p class='note'>ふだんは、ぶどうとリプレイで少しずつ戻りながら、メダルが減っていきます。当たりは、平均すると130〜170回転に1回くらい。300回転以上こないこともよくあります。</p>"
+    +"<p class='note'>「早送り」では、1日打ち続けた結果を数秒で見られます。</p>"
+    +"<button class='btn primary' data-act='close'>とじる</button>";
+}
+
+/* ===== 画面の切り替えと操作 ===== */
+function showTab(t){
+  tab=t;
+  ["play","fast","log","set"].forEach(k=>{ $("pg-"+k).hidden=k!==t; });
+  document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+  document.querySelector("main").scrollTop=0;
+  if(t==="play"){ renderPlay(); resizeReels(); }
+  else if(t==="fast"){ renderFastForm(); drawGraph(); }
+  else if(t==="log") renderLog();
+  else renderSet();
+  checkBackupNote();
+}
+function renderAll(){ showTab(tab); }
+document.addEventListener("pointerdown",()=>{ audio(); },{once:true});
+document.querySelectorAll("[data-stop]").forEach(b=>b.addEventListener("pointerdown",e=>{ e.preventDefault(); stopReel(+b.dataset.stop); }));
+$("btnLever").addEventListener("pointerdown",e=>{ e.preventDefault(); lever(); });
+$("btnBet").addEventListener("pointerdown",e=>{ e.preventDefault(); bet(); });
+$("sheetWrap").addEventListener("click",e=>{ if(e.target===$("sheetWrap")) closeSheet(); });
+document.addEventListener("click",e=>{
+  const tb=e.target.closest("[data-tab]"); if(tb){ showTab(tb.dataset.tab); return; }
+  const ch=e.target.closest("[data-chip]");
+  if(ch){
+    const v=+ch.dataset.v, k=ch.dataset.chip;
+    if(k==="pm") pick.money=v; else if(k==="ps") pick.setting=v;
+    else if(k==="fm") F.money=v; else if(k==="fs") F.setting=v; else if(k==="fg") F.games=v;
+    if(k[0]==="p") renderStart(); else renderFastForm();
+    return;
+  }
+  const el=e.target.closest("[data-act]"); if(!el) return;
+  const a=el.dataset.act;
+  if(a==="help") openSheet(helpHtml());
+  else if(a==="close") closeSheet();
+  else if(a==="start") startSession();
+  else if(a==="lend") lend();
+  else if(a==="quit"){
+    if(phase==="spin"||phase==="bonus") return;
+    const s=S.session; if(!s) return;
+    openSheet("<h2>やめて精算しますか？</h2><p>メダル"+fmt(s.medals+s.bet)+"枚をお金に戻して、結果を記録します。"+(s.lamp?"<br><b>ランプが光っています。当たりをそろえる前にやめると、当たりは無駄になります。</b>":"")+"</p>"
+      +"<button class='btn primary' data-act='quitYes'>精算する</button><button class='btn' style='margin-top:8px' data-act='close'>まだ打つ</button>");
+  }
+  else if(a==="quitYes"){ closeSheet(); settle(); }
+  else if(a==="ff1") ffOnce();
+  else if(a==="ff100") ffMany();
+  else if(a==="theme"){ S.theme=el.dataset.v; applyTheme(); save(); renderSet(); }
+  else if(a==="tg"){ const k=el.dataset.v; S[k]=!S[k]; save(); renderSet(); }
+  else if(a==="bkSave") backupSave();
+  else if(a==="restoreYes") doRestore();
+  else if(a==="bkLoad") $("fileIn").click();
+  else if(a==="wipeAsk") openSheet("<h2>記録をすべて消しますか？</h2><p>これまでの記録"+S.history.length+"件が消えます。元には戻せません。打っている途中の台はそのまま残ります。</p><button class='btn danger' data-act='wipeYes'>消す</button><button class='btn' style='margin-top:8px' data-act='close'>やめる</button>");
+  else if(a==="wipeYes"){ S.history=[]; save(); closeSheet(); renderSet(); checkBackupNote(); }
+});
+addEventListener("resize",()=>{ if(tab==="fast") drawGraph(); });
+
+/* ===== 起動 ===== */
+load(); applyTheme();
+if(navigator.storage&&navigator.storage.persist){ try{ navigator.storage.persist().catch(()=>{}); }catch(_){ } }
+phase=S.session&&S.session.bet===3?"ready":"idle";
+syncReels(); showTab("play"); requestAnimationFrame(loop);
+</script>
+
+<style>html,body{overscroll-behavior:none}</style>
+<script>
+(function () {
+  function canScroll(el) {
+    for (; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+      var s = getComputedStyle(el);
+      if (/(auto|scroll)/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 1) return true;
+      if (/(auto|scroll)/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 1) return true;
+    }
+    return false;
+  }
+  document.addEventListener('touchmove', function (e) {
+    if (e.touches.length > 1) return;
+    var t = e.target;
+    if (t.closest && t.closest('input,textarea,select,[contenteditable]')) return;
+    if (!canScroll(t)) e.preventDefault();
+  }, { passive: false });
+})();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+</script>
+</body>
+</html>
