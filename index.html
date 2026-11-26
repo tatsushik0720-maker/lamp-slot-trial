@@ -245,6 +245,24 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
 @keyframes hue{to{filter:hue-rotate(360deg)}}
 @keyframes pulse{from{box-shadow:0 0 10px 3px rgba(255,90,170,.5)}to{box-shadow:0 0 24px 10px rgba(255,120,190,.9)}}
 
+/* ホール */
+.hall{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.mc{text-align:left;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:8px 10px;min-height:44px;min-width:0}
+.mc.busy{opacity:.55}
+.mh{display:flex;justify-content:space-between;align-items:center;font-size:14px}
+.mh i{font-style:normal;font-size:11px;background:var(--chip);border-radius:999px;padding:1px 7px;color:var(--sub)}
+.mh i.me{background:var(--accent);color:var(--accent-ink)}
+.mr{display:flex;gap:12px;font-size:12.5px;margin-top:2px;color:var(--sub)}
+.mr b{font-size:18px;font-variant-numeric:tabular-nums;color:var(--ink)}
+.mr span:first-child b{color:var(--bad)}
+.ms{font-size:11.5px;color:var(--sub);line-height:1.45}
+.spark{display:block;width:100%;height:38px;margin-top:4px}
+#mGraph{display:block;width:100%;height:150px;margin-top:6px}
+.hits{display:flex;flex-wrap:wrap;gap:6px}
+.hits span{font-size:12.5px;border-radius:6px;padding:2px 7px;background:var(--chip);font-variant-numeric:tabular-nums}
+.hits .B{color:var(--bad);font-weight:700}
+#sheet table{font-size:13px}
+
 /* 一覧・結果 */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .grid2 div{background:var(--chip);border-radius:10px;padding:8px 10px}
@@ -303,10 +321,21 @@ body{position:absolute;top:0;right:0;bottom:0;left:0;height:auto;padding-top:env
       <p class="note">持っていくお金を決めて、1回ずつ打ちます。本物のお金は動きません。</p>
       <div class="lbl">持ち金</div>
       <div class="chips" id="stMoney"></div>
-      <div class="lbl">台の設定</div>
+      <div class="lbl">台の決め方</div>
       <div class="chips" id="stSet"></div>
       <p class="note" id="stSetNote"></p>
       <button class="btn primary" data-act="start">この条件で打ちはじめる</button>
+    </div>
+
+    <div id="hallArea" hidden>
+      <div class="wallet">
+        <div><small>財布</small><b id="hMoney">0円</b></div>
+        <div><small>持ちメダル</small><b id="hMedals">0枚</b></div>
+        <div><small>いまの収支</small><b id="hNet">0円</b></div>
+      </div>
+      <p class="note">台をタップすると、グラフや当たりの履歴が見られます。「遊技中」は、ほかの人が打っている台です。よさそうな台を探して座りましょう。</p>
+      <div id="hallList" class="hall"></div>
+      <button class="btn" data-act="hallQuit">店を出て精算する</button>
     </div>
 
     <div id="playArea" hidden>
@@ -319,7 +348,7 @@ body{position:absolute;top:0;right:0;bottom:0;left:0;height:auto;padding-top:env
         <div><small>BIG</small><span id="cBig"></span></div>
         <div><small>REG</small><span id="cReg"></span></div>
         <div><small>当たり後</small><span id="cSince"></span></div>
-        <div><small>合計回転</small><span id="cGames"></span></div>
+        <div><small id="cLbl">合計回転</small><span id="cGames"></span></div>
       </div>
       <div class="machine" id="machine">
         <div class="topPanel"><div class="bulbs" id="bulbs"></div><b>HOSHI LAMP</b><div class="bulbs" id="bulbs2"></div></div>
@@ -350,7 +379,7 @@ body{position:absolute;top:0;right:0;bottom:0;left:0;height:auto;padding-top:env
       <div id="hint" class="hint"></div>
       <div class="row">
         <button class="btn" id="btnLend" data-act="lend">1,000円で46枚借りる</button>
-        <button class="btn" data-act="quit">やめて精算する</button>
+        <button class="btn" data-act="quit" id="btnQuit">やめて精算する</button>
       </div>
     </div>
   </section>
@@ -526,7 +555,8 @@ function validSession(s){
     &&isInt(s.maxHama,0,1e8)&&Number.isFinite(s.minNet)&&(s.pending===null||s.pending==="BIG"||s.pending==="REG")
     &&typeof s.lamp==="boolean"&&(s.bet===0||s.bet===3)&&typeof s.omakase==="boolean"&&typeof s.replay==="boolean"
     &&Array.isArray(s.reels)&&s.reels.length===3&&s.reels.every(v=>isInt(v,0,N-1))&&Number.isFinite(s.startedAt)
-    &&(s.bonus==null||(typeof s.bonus==="object"&&(s.bonus.type==="BIG"||s.bonus.type==="REG")&&isInt(s.bonus.left,1,20)&&isInt(s.bonus.net,0,1000)));
+    &&(s.bonus==null||(typeof s.bonus==="object"&&(s.bonus.type==="BIG"||s.bonus.type==="REG")&&isInt(s.bonus.left,1,20)&&isInt(s.bonus.net,0,1000)))
+    &&(s.hall==null||validHall(s.hall));
 }
 function sanitize(raw){
   const d={v:1,theme:"auto",assist:true,sound:true,vib:true,fx:true,seen:{gold:0,soft:0,double:0,blink:0,late:0,rainbow:0,pre:0},session:null,history:[],lastBackup:0,created:Date.now()};
@@ -536,7 +566,7 @@ function sanitize(raw){
   if(Number.isFinite(raw.lastBackup)) d.lastBackup=raw.lastBackup;
   if(Number.isFinite(raw.created)) d.created=raw.created;
   if(Array.isArray(raw.history)) d.history=raw.history.filter(validRec).slice(-300).map(r=>({t:r.t,mode:r.mode,setting:r.setting,omakase:!!r.omakase,invest:r.invest,medals:r.medals,net:r.net,games:r.games,big:r.big,reg:r.reg,maxHama:r.maxHama,minNet:r.minNet}));
-  if(validSession(raw.session)){ d.session=raw.session; if(d.session.bonus===undefined) d.session.bonus=null; }
+  if(validSession(raw.session)){ d.session=raw.session; if(d.session.bonus===undefined) d.session.bonus=null; if(d.session.hall===undefined) d.session.hall=null; }
   if(raw.seen&&typeof raw.seen==="object") ["gold","soft","double","blink","late","rainbow","pre"].forEach(k=>{ if(isInt(raw.seen[k],0,1e7)) d.seen[k]=raw.seen[k]; });
   return d;
 }
@@ -756,28 +786,31 @@ let phase="idle";               // idle / ready / spin / bonus
 let game=null;                  // 回っている間だけ使う
 const reels=[{pos:0,spin:false,target:null},{pos:0,spin:false,target:null},{pos:0,spin:false,target:null}];
 let flashUntil=0;
-const pick={money:10000,setting:0};
+const pick={money:10000,setting:-1};
 const MONEY_CH=[5000,10000,20000,30000];
 
 function chipHtml(list,cur,key,label){ return list.map(v=>"<button data-chip='"+key+"' data-v='"+v+"' class='"+(v===cur?"on":"")+"'>"+label(v)+"</button>").join(""); }
-const setLabel=v=>v===0?"おまかせ":"設定"+v;
+const setLabel=v=>v===-1?"ホールで選ぶ":v===0?"おまかせ":"設定"+v;
 function renderStart(){
   $("stMoney").innerHTML=chipHtml(MONEY_CH,pick.money,"pm",v=>fmt(v)+"円");
-  $("stSet").innerHTML=chipHtml([0,1,2,3,4,5,6],pick.setting,"ps",setLabel);
-  $("stSetNote").textContent=pick.setting===0
+  $("stSet").innerHTML=chipHtml([-1,0,1,2,3,4,5,6],pick.setting,"ps",setLabel);
+  $("stSetNote").textContent=pick.setting===-1?"12台が並ぶホールに入ります。グラフや当たりの回数を見て、よさそうな台を探して打ちます。設定は台ごとに違い、精算のときに全部の答えが出ます。":pick.setting===0
     ?"おまかせは、設定を隠して打ちます。お店と同じで、低い設定が出やすくなっています。精算のときに答えが出ます。"
     :"設定は1がいちばん当たりにくく、6がいちばん当たりやすい台です。";
 }
 function netNow(){ const s=S.session; return (s.medals+s.bet)*YEN_PER_MEDAL-s.invest; }
 function renderPlay(){
   const s=S.session;
-  $("startCard").hidden=!!s; $("playArea").hidden=!s;
+  const inHall=!!(s&&s.hall&&s.hall.cur==null);
+  $("startCard").hidden=!!s; $("playArea").hidden=!s||inHall; $("hallArea").hidden=!inHall;
   if(!s){ renderStart(); return; }
+  if(inHall){ renderHall(); return; }
   $("wMoney").textContent=yen(s.money);
   if(dispMedals>s.medals) dispMedals=s.medals;
   showMedals();
   const n=netNow(); const wn=$("wNet"); wn.textContent=syen(n); wn.className=cls(n);
-  setSeg("cBig",s.big,3); setSeg("cReg",s.reg,3); setSeg("cSince",s.since,4); setSeg("cGames",s.games,5); setSeg("sgPay",lastPay,3);
+  const cm=curM()||s; setSeg("cBig",cm.big,3); setSeg("cReg",cm.reg,3); setSeg("cSince",cm.since,4); setSeg("cGames",cm.games,5);
+  $("cLbl").textContent=s.hall?cm.no+"番台 合計":"合計回転"; $("btnQuit").textContent=s.hall?"台をはなれる":"やめて精算する"; setSeg("sgPay",lastPay,3);
   ["l1","l2","l3"].forEach(id=>$(id).classList.toggle("on",s.bet===3||phase==="spin"));
   $("lpStart").classList.toggle("on",phase==="ready"); $("lpReplay").classList.toggle("on",s.replay); $("lpInsert").classList.toggle("on",phase==="idle");
   const lit=s.lamp&&!lampHold, mc=$("machine").classList;
@@ -801,7 +834,7 @@ function renderPlay(){
   else if(phase==="spin") h=s.lamp?(S.assist?"7がそろうまで回します。ぶどうなどが出た回は、次のゲームに持ち越しです。":"7を狙って止めてください。そろうまで当たりは消えません。"):"左から順にボタンを押して止めます。";
   else if(phase==="ready") h=s.replay?"リプレイです。メダルを入れずに、もう1回レバーを押せます。":"レバーを押すと回ります。当たりかどうかは、この瞬間に決まります。";
   else if(s.medals<3&&s.money>=LEND_YEN) h="メダルがありません。「1,000円で46枚借りる」を押します。";
-  else if(s.medals<3) h="お金もメダルもなくなりました。「やめて精算する」で結果を見ます。";
+  else if(s.medals<3) h=s.hall?"お金もメダルもなくなりました。「台をはなれる」でホールに戻り、精算します。":"お金もメダルもなくなりました。「やめて精算する」で結果を見ます。";
   else if(lit) h="ランプが光りました。ボーナス確定です。MAX BET を押して、7がそろうまで回します。";
   else h="MAX BET でメダルを3枚入れます。";
   if(auto&&(s.bonus||s.medals>=3||s.money>=LEND_YEN||phase!=="idle")) h="オートで回しています。もう一度 AUTO を押すと"+(auto===1?"高速に、さらに押すと止まります。":"止まります。");
@@ -809,8 +842,8 @@ function renderPlay(){
   if(s.bonus&&phase!=="bonus") $("winMsg").textContent=(s.bonus.type==="BIG"?"BIG":"REG")+" BONUS　あと"+s.bonus.left+"G　＋"+s.bonus.net+"枚";
 }
 function startSession(){
-  const omakase=pick.setting===0;
-  S.session={money:pick.money,startMoney:pick.money,invest:0,medals:0,setting:omakase?pickOmakase():pick.setting,omakase,
+  const hallMode=pick.setting===-1, omakase=pick.setting<=0;
+  S.session={money:pick.money,startMoney:pick.money,invest:0,medals:0,setting:hallMode?1:(omakase?pickOmakase():pick.setting),omakase,hall:hallMode?makeHall():null,
     games:0,since:0,big:0,reg:0,maxHama:0,minNet:0,pending:null,lamp:false,bet:0,replay:false,bonus:null,
     reels:[Math.floor(Math.random()*N),Math.floor(Math.random()*N),Math.floor(Math.random()*N)],startedAt:Date.now()};
   phase="idle"; syncReels(); save(); renderPlay(); resizeReels();
@@ -824,7 +857,7 @@ function lend(){
 }
 function bet(){
   const s=S.session; if(!s||phase!=="idle"||(s.medals<3&&!s.bonus)) return;
-  s.medals-=Math.min(3,s.medals); s.bet=3; lastPay=0; phase="ready"; $("winMsg").textContent=""; SE.bet(); save(); renderPlay();
+  const tk=Math.min(3,s.medals); s.medals-=tk; mDiff(-tk); s.bet=3; lastPay=0; phase="ready"; $("winMsg").textContent=""; SE.bet(); save(); renderPlay();
 }
 const BIG_GAMES=20, REG_GAMES=8, BONUS_PAY=15;   // 1ゲームで 3枚入れて15枚戻る → BIG +240枚、REG +96枚
 const KIND_NAME={gold:"金色に点灯",soft:"じわっと点灯",double:"一瞬光ってから本点灯",blink:"点滅",late:"おくれて点灯",rainbow:"虹色（プレミアム）",pre:"レバーでいきなり点灯"};
@@ -836,6 +869,7 @@ function lever(){
   if(s.bonus){ game.eff="G"; if(!BGM.on) BGM.start(s.bonus.type); }
   else{
     s.games++; s.since++;
+    const hm=curM(); if(hm){ hm.games++; hm.since++; if(hm.games%TRAIL_STEP===0) pushTrail(hm); }
     if(s.pending&&!s.lamp) s.lamp=true;
     const f=draw(s.setting,s.pending,Math.random);
     if(f==="BIG"||f==="REG"){
@@ -881,16 +915,16 @@ function finishGame(){
   if(w&&(w.role==="BIG"||w.role==="REG")){ startBonus(w.role); return; }
   let msg=""; const rc=centerOf($("reels")), now=performance.now();
   if(w&&w.role==="G"&&s.bonus){
-    const b=s.bonus; s.medals+=BONUS_PAY; b.left--; b.net+=BONUS_PAY-3; lastPay=BONUS_PAY;
+    const b=s.bonus; s.medals+=BONUS_PAY; mDiff(BONUS_PAY); b.left--; b.net+=BONUS_PAY-3; lastPay=BONUS_PAY;
     SE.bonusPay(); flashUntil=now+700; popText("＋"+BONUS_PAY); burst(rc[0],rc[1],26,"coin"); bump($("wMedals")); vib(20);
     if(b.left<=0){ endBonus(); return; }
   }
   else if(w&&(w.role==="G"||w.role==="L")){
-    s.medals+=PAY[w.role]; msg=ROLE_NAME[w.role]+"　＋"+PAY[w.role]+"枚"; SE.pay(PAY[w.role]); flashUntil=now+800;
+    s.medals+=PAY[w.role]; mDiff(PAY[w.role]); msg=ROLE_NAME[w.role]+"　＋"+PAY[w.role]+"枚"; SE.pay(PAY[w.role]); flashUntil=now+800;
     lastPay=PAY[w.role]; popText("＋"+PAY[w.role]); burst(rc[0],rc[1],w.role==="L"?16:9,"coin"); bump($("wMedals")); vib(20);
   }
   else if(w&&w.role==="R"){ s.replay=true; s.bet=3; msg="リプレイ（もう1回）"; SE.replay(); flashUntil=now+700; popText("REPLAY","blue"); }
-  else if(game.eff==="C"&&leftCherry(p[0])){ s.medals+=PAY.C; msg="チェリー　＋"+PAY.C+"枚"; SE.pay(PAY.C); lastPay=PAY.C; popText("＋"+PAY.C); burst(rc[0],rc[1],3,"coin"); bump($("wMedals")); }
+  else if(game.eff==="C"&&leftCherry(p[0])){ s.medals+=PAY.C; mDiff(PAY.C); msg="チェリー　＋"+PAY.C+"枚"; SE.pay(PAY.C); lastPay=PAY.C; popText("＋"+PAY.C); burst(rc[0],rc[1],3,"coin"); bump($("wMedals")); }
   if(game.lightAfter){
     s.lamp=true; lampHold=true; const kind=pickKind(); clearTimeout(lampTimer);
     lampTimer=setTimeout(()=>lampOn(kind),calm()?0:(kind==="late"?1500:450));
@@ -907,7 +941,9 @@ function startBonus(type){
   const s=S.session, big=type==="BIG", n=big?BIG_GAMES:REG_GAMES;
   s.lamp=false; lampHold=false; clearTimeout(lampTimer); s.pending=null; if(big) s.big++; else s.reg++;
   if(s.since>s.maxHama) s.maxHama=s.since;
-  const waited=s.since; s.since=0; s.bonus={type,left:n,net:0}; game=null; phase="bonus"; lastPay=0; save();
+  const hm=curM(), waited=hm?hm.since:s.since; s.since=0;
+  if(hm){ hm.hits.push([hm.since,type]); if(hm.hits.length>30) hm.hits.shift(); hm.since=0; if(big) hm.big++; else hm.reg++; }
+  s.bonus={type,left:n,net:0}; game=null; phase="bonus"; lastPay=0; save();
   SE.fanfare(big); vib([120,60,120,60,300]); flashUntil=performance.now()+2400;
   showOv(big?"BIG BONUS":"REGULAR BONUS",big,"START!",(waited<=100&&s.big+s.reg>1?"100回転以内の連続当たり！ ":"")+waited+"回転めの当たり。ここから"+n+"ゲーム、毎回ぶどうがそろって"+BONUS_PAY+"枚もらえます。");
   $("winMsg").textContent="";
@@ -947,7 +983,7 @@ function settle(){
   if(s.games>0) S.history.push(rec);
   S.session=null; phase="idle"; game=null; BGM.stop(); if(auto) setAuto(0); cancelAnimationFrame(bonusTimer); $("bonusOv").hidden=true;
   save(); renderPlay();
-  openSheet("<h2>精算</h2>"+resultHtml(rec,true)+"<button class='btn primary' data-act='close'>とじる</button>");
+  openSheet("<h2>精算</h2>"+resultHtml(rec,true)+(s.hall?hallRevealHtml(s.hall):"")+"<button class='btn primary' data-act='close'>とじる</button>");
 }
 function resultHtml(r,reveal){
   const back=r.medals*YEN_PER_MEDAL;
@@ -962,6 +998,119 @@ function resultHtml(r,reveal){
     +"<div><small>いちばん負けていた時</small><b>"+yen(r.minNet)+"</b></div>"
     +"<div><small>台の設定"+(r.omakase&&reveal?"（答え）":"")+"</small><b>設定"+r.setting+"</b></div>"
     +"</div><p class='note'>メダルは1枚20円で計算しています。実際のお店では、交換のときに1枚あたりの金額が下がることがあります。</p>";
+}
+
+/* ===== ホール（何台もある中から選ぶ） ===== */
+const TRAIL_STEP=25, HALL_N=12;
+function curM(){ const s=S.session; return s&&s.hall&&s.hall.cur!=null?s.hall.machines[s.hall.cur]:null; }
+function mDiff(v){ const m=curM(); if(m) m.diff+=v; }
+function pushTrail(m){ m.trail.push(m.diff); if(m.trail.length>480) m.trail.shift(); }
+function newMachine(no,setting){ return {no,setting,games:0,big:0,reg:0,since:0,diff:0,trail:[0],hits:[],busy:false,mine:0,y:null,yy:null}; }
+/* ほかの人が n ゲーム打った分を進める（抽選は自分で打つときと同じ） */
+function simMachine(m,n){
+  let pending=null, replay=false;
+  const hitNow=h=>{ m.diff+=h==="BIG"?BIG_NET:REG_NET; if(h==="BIG") m.big++; else m.reg++; m.hits.push([m.since,h]); if(m.hits.length>30) m.hits.shift(); m.since=0; pending=null; };
+  for(let k=0;k<n;k++){
+    if(!replay) m.diff-=3; replay=false; m.games++; m.since++;
+    const f=draw(m.setting,pending,Math.random); let hit=null;
+    if(f==="BIG"||f==="REG"){ pending=f; if(Math.random()<PRE_LAMP) hit=f; }
+    else if(f==="N"){ if(pending) hit=pending; }
+    else if(f==="R") replay=true;
+    else m.diff+=PAY[f];
+    if(hit) hitNow(hit);
+    if(m.games%TRAIL_STEP===0) pushTrail(m);
+  }
+  if(pending) hitNow(pending);
+}
+function daySummary(setting){ const m=newMachine(0,setting); simMachine(m,3000+Math.floor(Math.random()*5000)); return {games:m.games,big:m.big,reg:m.reg,diff:m.diff}; }
+function buildMachine(no,setting){
+  const m=newMachine(no,setting), ys=Math.random()<0.6?setting:pickOmakase();
+  m.y=daySummary(ys); m.yy=daySummary(Math.random()<0.6?ys:pickOmakase());
+  simMachine(m,Math.random()<0.2?Math.floor(Math.random()*300):800+Math.floor(Math.random()*5200));
+  m.busy=m.games>300&&Math.random()<0.35;
+  return m;
+}
+function makeHall(){
+  const ms=[]; for(let i=0;i<HALL_N;i++) ms.push(buildMachine(701+i,pickOmakase()));
+  if(!ms.some(m=>m.setting>=5)){ const i=Math.floor(Math.random()*HALL_N); ms[i]=buildMachine(701+i,5+Math.floor(Math.random()*2)); }
+  const hi=ms.filter(m=>m.setting>=5); if(hi.every(m=>m.busy)) hi[0].busy=false;
+  if(ms.every(m=>m.busy)) ms[0].busy=false;
+  return {machines:ms,cur:null,sat:0};
+}
+function validDay(d){ return d&&typeof d==="object"&&isInt(d.games,0,1e8)&&isInt(d.big,0,1e6)&&isInt(d.reg,0,1e6)&&Number.isFinite(d.diff); }
+function validHall(h){
+  if(!h||typeof h!=="object"||!Array.isArray(h.machines)||h.machines.length<1||h.machines.length>40) return false;
+  if(!(h.cur===null||isInt(h.cur,0,h.machines.length-1))||!isInt(h.sat,0,1e8)) return false;
+  return h.machines.every(m=>m&&typeof m==="object"&&isInt(m.no,0,99999)&&isInt(m.setting,1,6)&&isInt(m.games,0,1e8)&&isInt(m.big,0,1e6)&&isInt(m.reg,0,1e6)
+    &&isInt(m.since,0,1e8)&&Number.isFinite(m.diff)&&Array.isArray(m.trail)&&m.trail.length>=1&&m.trail.length<=600&&m.trail.every(Number.isFinite)
+    &&Array.isArray(m.hits)&&m.hits.length<=40&&m.hits.every(x=>Array.isArray(x)&&isInt(x[0],0,1e8)&&(x[1]==="BIG"||x[1]==="REG"))
+    &&typeof m.busy==="boolean"&&isInt(m.mine,0,1e8)&&validDay(m.y)&&validDay(m.yy));
+}
+function rate(g,n){ return n?"1/"+Math.round(g/n):"—"; }
+const smed=n=>(n>0?"＋":n<0?"−":"")+fmt(n)+"枚";
+function drawTrail(c,t,labels){
+  const w=c.clientWidth, h=c.clientHeight, d=Math.min(2,window.devicePixelRatio||1); if(!w||!h) return;
+  c.width=Math.round(w*d); c.height=Math.round(h*d); const g=c.getContext("2d"); g.setTransform(d,0,0,d,0,0);
+  const cs=getComputedStyle(document.documentElement);
+  let mn=Math.min(0,...t), mx=Math.max(0,...t); if(mx-mn<200){ mx+=100; mn-=100; }
+  const pad=labels?6:3, Y=v=>pad+(h-pad*2)*(1-(v-mn)/(mx-mn)), X=i=>t.length<2?0:i/(t.length-1)*w;
+  g.strokeStyle=cs.getPropertyValue("--line").trim()||"#ccc"; g.lineWidth=1; g.beginPath(); g.moveTo(0,Y(0)); g.lineTo(w,Y(0)); g.stroke();
+  g.strokeStyle=cs.getPropertyValue(t[t.length-1]>=0?"--good":"--bad").trim()||"#b3261e"; g.lineWidth=labels?2:1.6; g.lineJoin="round";
+  g.beginPath(); t.forEach((v,i)=>{ if(i) g.lineTo(X(i),Y(v)); else g.moveTo(X(i),Y(v)); }); g.stroke();
+  if(labels){ g.fillStyle=cs.getPropertyValue("--sub").trim()||"#666"; g.font="11px sans-serif"; g.textAlign="left"; g.textBaseline="top"; g.fillText(smed(mx),2,2); g.textBaseline="bottom"; g.fillText(smed(mn),2,h-2); }
+}
+function renderHall(){
+  const s=S.session, H=s.hall, net=s.medals*YEN_PER_MEDAL-s.invest;
+  $("hMoney").textContent=yen(s.money); $("hMedals").textContent=fmt(s.medals)+"枚";
+  const hn=$("hNet"); hn.textContent=syen(net); hn.className=cls(net);
+  $("hallList").innerHTML=H.machines.map((m,i)=>"<button class='mc"+(m.busy?" busy":"")+"' data-act='mc' data-v='"+i+"'>"
+    +"<div class='mh'><b>"+m.no+"番台</b>"+(m.busy?"<i>遊技中</i>":m.mine?"<i class='me'>打った台</i>":"")+"</div>"
+    +"<div class='mr'><span>BIG <b>"+m.big+"</b></span><span>REG <b>"+m.reg+"</b></span></div>"
+    +"<div class='ms'>総回転 "+fmt(m.games)+"・合算 "+rate(m.games,m.big+m.reg)+"</div>"
+    +"<div class='ms'>いま "+fmt(m.since)+"回転</div><canvas class='spark' data-i='"+i+"'></canvas></button>").join("");
+  document.querySelectorAll("#hallList .spark").forEach(c=>drawTrail(c,H.machines[+c.dataset.i].trail,false));
+}
+function machineSheet(i){
+  const m=S.session.hall.machines[i];
+  const day=(name,d)=>"<tr><td>"+name+"</td><td>"+d.big+" / "+d.reg+"</td><td>"+fmt(d.games)+"</td><td>"+rate(d.games,d.big+d.reg)+"</td><td>"+smed(d.diff)+"</td></tr>";
+  openSheet("<h2>"+m.no+"番台"+(m.busy?"（遊技中）":"")+"</h2>"
+    +"<div class='grid2'><div><small>BIG</small><b>"+m.big+"回（"+rate(m.games,m.big)+"）</b></div><div><small>REG</small><b>"+m.reg+"回（"+rate(m.games,m.reg)+"）</b></div>"
+    +"<div><small>総回転・合算</small><b>"+fmt(m.games)+"・"+rate(m.games,m.big+m.reg)+"</b></div><div><small>いまの回転</small><b>"+fmt(m.since)+"回転</b></div></div>"
+    +"<div class='lbl'>今日の差枚（出たメダル − 入れたメダル）　"+smed(m.diff)+"</div><canvas id='mGraph'></canvas>"
+    +"<div class='lbl'>直近の当たり（新しい順・何回転で当たったか）</div><div class='hits'>"+(m.hits.length?m.hits.slice(-12).reverse().map(x=>"<span class='"+(x[1]==="BIG"?"B":"")+"'>"+x[1]+" "+x[0]+"</span>").join(""):"<span>まだ当たりなし</span>")+"</div>"
+    +"<div class='lbl'>これまでのデータ</div><table><tr><th>日</th><th>BIG/REG</th><th>回転</th><th>合算</th><th>差枚</th></tr>"+day("前日",m.y)+day("前々日",m.yy)+"</table>"
+    +"<p class='note'>設定は、日によって変わることがあります。前日がよくても、今日も同じとは限りません。</p>"
+    +(m.busy?"<p class='note'>ほかの人が打っているので、いまは座れません。</p>":"<button class='btn primary' data-act='sit' data-v='"+i+"'>この台に座る</button>")
+    +"<button class='btn' style='margin-top:8px' data-act='close'>とじる</button>");
+  drawTrail($("mGraph"),m.trail,true);
+}
+function sit(i){
+  const s=S.session, H=s.hall, m=H.machines[i]; if(m.busy) return;
+  closeSheet(); H.cur=i; H.sat=m.games; s.setting=m.setting; s.since=0; s.bet=0; s.replay=false; phase="idle"; game=null; lastPay=0; winLine=-1;
+  s.reels=[Math.floor(Math.random()*N),Math.floor(Math.random()*N),Math.floor(Math.random()*N)];
+  syncReels(); save(); document.querySelector("main").scrollTop=0; renderPlay(); resizeReels(); $("winMsg").textContent=m.no+"番台に座りました";
+}
+function leaveAsk(){
+  const s=S.session;
+  if(s.lamp||s.pending||s.bonus){ openSheet("<h2>いまは、はなれられません</h2><p>"+(s.bonus?"ボーナスの途中です。":"ランプが光っています。")+"最後まで打ってから移動しましょう。</p><button class='btn' data-act='close'>とじる</button>"); return; }
+  openSheet("<h2>この台をはなれますか？</h2><p>メダルは持ったまま、ホールに戻って別の台を選べます。その間に、ほかの台も進みます。</p><button class='btn primary' data-act='leaveYes'>ホールに戻る</button><button class='btn' style='margin-top:8px' data-act='close'>まだ打つ</button>");
+}
+function leaveMachine(){
+  const s=S.session, H=s.hall, m=curM(); if(!m) return;
+  if(s.bet===3&&!s.replay){ s.medals+=3; m.diff+=3; }
+  s.bet=0; s.replay=false; phase="idle"; game=null; if(auto) setAuto(0); BGM.stop();
+  const g=m.games-H.sat; m.mine+=g; H.cur=null;
+  H.machines.forEach(o=>{
+    if(o===m) return;
+    if(o.busy){ simMachine(o,Math.round(g*(0.7+Math.random()*0.5))); if(Math.random()<0.15) o.busy=false; }
+    else if(Math.random()<0.1) o.busy=true;
+  });
+  closeSheet(); save(); document.querySelector("main").scrollTop=0; renderPlay();
+}
+function hallRevealHtml(H){
+  return "<div class='lbl'>答え合わせ（全部の台の設定）</div><table><tr><th>台</th><th>設定</th><th>BIG/REG</th><th>差枚</th></tr>"
+    +H.machines.map(m=>"<tr><td>"+(m.mine?"★ ":"")+m.no+"</td><td><b>"+m.setting+"</b></td><td>"+m.big+" / "+m.reg+"</td><td>"+smed(m.diff)+"</td></tr>").join("")
+    +"</table><p class='note'>★は、あなたが打った台です。設定5・6は、長く打つほど増える台。1〜3は減る台です。</p>";
 }
 
 /* ===== リールの絵 ===== */
@@ -1152,7 +1301,7 @@ function setAuto(v){
 }
 function autoTick(now){
   if(!auto) return; const s=S.session;
-  if(!s||tab!=="play"){ setAuto(0); return; }
+  if(!s||tab!=="play"||(s.hall&&s.hall.cur==null)){ setAuto(0); return; }
   if(!$("sheetWrap").hidden) return;
   const q=auto===2?0.4:1;
   if(phase!==autoPrev){ autoPrev=phase; if(phase==="idle"||phase==="ready") autoAt=Math.max(autoAt,now+(now<flashUntil?850:380)*q); return; }
@@ -1296,7 +1445,7 @@ function renderSet(){
     +"<p class='note'>当たりの確率は、ホールでよく見かける機種「アイムジャグラーEX」（6号機）について公表されている値を手本にしました（出典：DMMぱちタウンの機種ページ、2026年11月26日に確認）。ぶどうの確率（1/6.02、設定6だけ1/5.78）も同じ出典です。設定1のぶどうは読み取れなかったので、1/6.02 と仮定しています。</p>"
     +"<p class='note'>次の値は目安で、公表値ではありません。リプレイ 1/7.3、チェリー 1/33（2枚）、ベル 1/1000（14枚）、BIG で増える枚数 約240枚、REG 約96枚、レバーを押した瞬間に光る割合 4回に1回、おまかせで出る設定の割合（設定1が40%、6が4%）。</p>"
     +"<p class='note'>ボーナスは、BIG が20ゲーム、REG が8ゲームで、毎ゲーム3枚入れて15枚戻る形にしています。増える枚数を合わせるための独自の作りで、実機の仕組みそのものではありません。判定は、横3列と斜め2本の5ラインです。ランプの光り方は7種類ありますが、見た目だけの違いです。</p>"
-    +"<p class='note'>設定1〜3は、長く打つほどお金が減るように作られています。のめり込みにはご注意ください。</p></div>";
+    +"<p class='note'>ホールの12台は、入るたびに作り直します。設定の割合は「おまかせ」と同じで、設定5か6の台が必ず1台はあります。ほかの人の稼働、前日・前々日のデータ、設定が前日から変わる割合（4割）は、どれも仮の作りです。</p><p class='note'>設定1〜3は、長く打つほどお金が減るように作られています。のめり込みにはご注意ください。</p></div>";
 }
 function backupSave(){
   const data=JSON.stringify({app:KEY,saved:Date.now(),data:S});
@@ -1349,7 +1498,7 @@ function helpHtml(){
     +"<tr><td>🍇🍇🍇 ぶどう</td><td>8枚</td></tr><tr><td>🔔🔔🔔 ベル</td><td>14枚</td></tr>"
     +"<tr><td>REPLAY が3つ</td><td>もう1回無料</td></tr><tr><td>左の列に🍒（当選時）</td><td>2枚</td></tr></table>"
     +"<p class='note'>ふだんは、ぶどうとリプレイで少しずつ戻りながら、メダルが減っていきます。当たりは、平均すると130〜170回転に1回くらい。300回転以上こないこともよくあります。</p>"
-    +"<p class='note'>「早送り」では、1日打ち続けた結果を数秒で見られます。</p>"
+    +"<p class='note'>「ホールで選ぶ」で始めると、12台の中から台を選べます。当たりの回数、合算（何回転に1回当たっているか）、差枚のグラフを見比べて、よさそうな台を探します。合算が1/130くらいで、REG も多い台は高い設定の見込みがあります。ただし、回転数が少ないうちは運のぶれが大きく、あてになりません。</p><p class='note'>「早送り」では、1日打ち続けた結果を数秒で見られます。</p>"
     +"<button class='btn primary' data-act='close'>とじる</button>";
 }
 
@@ -1391,10 +1540,15 @@ document.addEventListener("click",e=>{
   else if(a==="quit"){
     if(phase==="spin"||phase==="bonus") return;
     const s=S.session; if(!s) return;
+    if(s.hall&&s.hall.cur!=null){ leaveAsk(); return; }
     openSheet("<h2>やめて精算しますか？</h2><p>メダル"+fmt(s.medals+s.bet)+"枚をお金に戻して、結果を記録します。"+(s.bonus?"<br><b>ボーナスの途中です。やめると、残りのゲームは無くなります。</b>":"")+(s.lamp?"<br><b>ランプが光っています。当たりをそろえる前にやめると、当たりは無駄になります。</b>":"")+"</p>"
       +"<button class='btn primary' data-act='quitYes'>精算する</button><button class='btn' style='margin-top:8px' data-act='close'>まだ打つ</button>");
   }
   else if(a==="quitYes"){ closeSheet(); settle(); }
+  else if(a==="mc") machineSheet(+el.dataset.v);
+  else if(a==="sit") sit(+el.dataset.v);
+  else if(a==="leaveYes") leaveMachine();
+  else if(a==="hallQuit"){ const s=S.session; if(!s) return; openSheet("<h2>店を出て精算しますか？</h2><p>メダル"+fmt(s.medals)+"枚をお金に戻して、結果を記録します。全部の台の設定も見られます。</p><button class='btn primary' data-act='quitYes'>精算する</button><button class='btn' style='margin-top:8px' data-act='close'>まだ打つ</button>"); }
   else if(a==="ff1") ffOnce();
   else if(a==="ff100") ffMany();
   else if(a==="theme"){ S.theme=el.dataset.v; applyTheme(); save(); renderSet(); }
