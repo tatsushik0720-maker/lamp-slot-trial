@@ -194,6 +194,32 @@ main{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scro
 .lampRow{height:44px}
 .hint{font-size:13px;line-height:1.35;height:46px;min-height:0;padding:4px 12px;overflow:hidden}
 
+/* オート */
+.panel{gap:6px;padding:6px}
+.mbtn.bet{width:64px}
+.mbtn.auto{flex:none;width:54px;min-height:44px;border-radius:8px;font-size:12px;line-height:1.15;color:#d7d2ea;background:linear-gradient(#4a4466,#2a2540);box-shadow:0 3px 0 #15121f,0 0 0 2px #1c1830}
+.mbtn.auto small{font-size:10px;color:#8d86a8}
+.mbtn.auto:active{transform:translateY(2px);box-shadow:0 1px 0 #15121f,0 0 0 2px #1c1830}
+.mbtn.auto.on{color:#06260f;background:linear-gradient(#b9ffc8,#3fd06a);box-shadow:0 3px 0 #17642f,0 0 0 2px #1c1830,0 0 12px 2px rgba(90,255,140,.7)}
+.mbtn.auto.on small{color:#0b3d1c}
+.mbtn.auto.fast{background:linear-gradient(#ffe9a8,#ff9d1e);box-shadow:0 3px 0 #8a4a05,0 0 0 2px #1c1830,0 0 12px 2px rgba(255,170,60,.75)}
+.disp{flex-direction:column;align-items:flex-end;justify-content:center;gap:1px;padding:2px 6px 3px;min-width:0}
+.disp small{align-self:flex-start;line-height:1.1}
+.disp .sg{height:18px}
+
+/* 告知ランプのエンブレム */
+.lamp{padding:1px 0}
+.lamp svg{display:block;width:100%;height:38px}
+.lamp .st{fill:#2a2342;stroke:#5d5672;stroke-width:1.4;stroke-linejoin:round}
+.lamp .tx{font:italic 900 23px 'Arial Black',Arial,sans-serif;fill:#2a2342;stroke:#5d5672;stroke-width:1.2;paint-order:stroke;letter-spacing:.5px}
+.lamp .rays,.lamp .sp{opacity:0}
+.lamp.on .st{fill:#fffdf0;stroke:#c81e2c;stroke-width:1.8;transform-box:fill-box;transform-origin:center;animation:starSpin 1.6s linear infinite}
+.lamp.on .tx{fill:#d4172a;stroke:#fffdf0;stroke-width:2.6}
+.lamp.on .rays{opacity:1;stroke:#fffdf0;stroke-width:2;stroke-linecap:round;fill:none;animation:twinkle .4s steps(2,jump-none) infinite}
+.lamp.on .sp{opacity:1;fill:#fffdf0;animation:twinkle .5s steps(2,jump-none) infinite reverse}
+@keyframes starSpin{0%{transform:rotate(0) scale(1)}50%{transform:rotate(180deg) scale(1.18)}100%{transform:rotate(360deg) scale(1)}}
+@keyframes twinkle{from{opacity:1}to{opacity:.25}}
+
 /* 一覧・結果 */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .grid2 div{background:var(--chip);border-radius:10px;padding:8px 10px}
@@ -280,9 +306,10 @@ body{position:absolute;top:0;right:0;bottom:0;left:0;height:auto;padding-top:env
           </div>
           <div class="side r"><i id="lpStart">START</i><i id="lpReplay">REPLAY</i><i id="lpInsert">INSERT</i></div>
         </div>
-        <div class="lampRow"><div id="lamp" class="lamp">★ あたり ★</div><div id="winMsg"></div></div>
+        <div class="lampRow"><div id="lamp" class="lamp" role="img" aria-label="告知ランプ"><svg viewBox="0 0 126 40" aria-hidden="true"><g class="rays"><path d="M4 20h8M22 2v-1M40 20h-3M9 7l4 4M35 7l-4 4M9 33l4-4M35 33l-4-4"/></g><polygon class="st" points="22,5 25.8,14.7 36.3,15.4 28.2,22 30.8,32.1 22,26.5 13.2,32.1 15.8,22 7.7,15.4 18.2,14.7"/><text class="tx" x="82" y="29" text-anchor="middle">PIKA!</text><path class="sp" d="M112 6l1.6 4 4 1.6-4 1.6-1.6 4-1.6-4-4-1.6 4-1.6zM50 30l1 2.6 2.6 1-2.6 1-1 2.6-1-2.6-2.6-1 2.6-1z"/></svg></div><div id="winMsg"></div></div>
         <div class="panel">
           <button class="mbtn bet" id="btnBet" aria-label="MAX BET（メダルを3枚入れる）">MAX<br>BET</button>
+          <button class="mbtn auto" id="btnAuto" aria-label="オート">AUTO<small id="autoLbl">OFF</small></button>
           <div class="disp"><small>CREDIT</small><span id="sgCredit"></span></div>
           <div class="disp"><small>PAYOUT</small><span id="sgPay"></span></div>
         </div>
@@ -752,6 +779,7 @@ function renderPlay(){
   else if(s.medals<3) h="お金もメダルもなくなりました。「やめて精算する」で結果を見ます。";
   else if(lit) h="ランプが光りました。ボーナス確定です。MAX BET を押して、7がそろうまで回します。";
   else h="MAX BET でメダルを3枚入れます。";
+  if(auto&&(s.bonus||s.medals>=3||s.money>=LEND_YEN||phase!=="idle")) h="オートで回しています。もう一度 AUTO を押すと"+(auto===1?"高速に、さらに押すと止まります。":"止まります。");
   $("hint").textContent=h;
   if(s.bonus&&phase!=="bonus") $("winMsg").textContent=(s.bonus.type==="BIG"?"BIG":"REG")+" BONUS　あと"+s.bonus.left+"G　＋"+s.bonus.net+"枚";
 }
@@ -799,7 +827,7 @@ function lever(){
 function stopReel(i){
   if(phase!=="spin"||!reels[i].spin||reels[i].target!=null) return;
   const stops=reels.map(r=>r.target!=null?((r.target%N)+N)%N:(r.spin?null:r.pos));
-  reels[i].target=chooseStop(i,Math.ceil(reels[i].pos),game.eff,stops,S.assist?N-1:4);
+  reels[i].target=chooseStop(i,Math.ceil(reels[i].pos),game.eff,stops,(S.assist||auto)?N-1:4);
   SE.press(); renderPlay();
 }
 function popText(txt,kind){
@@ -809,7 +837,7 @@ function popText(txt,kind){
 function bump(el){ el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
 let lampTimer=0, lampHold=false, lampKind="gold";
 function lampOn(kind){
-  lampHold=false; lampKind=kind; S.seen[kind]=(S.seen[kind]||0)+1;
+  lampHold=false; lampKind=kind; autoAt=performance.now()+(auto===2?900:2200); S.seen[kind]=(S.seen[kind]||0)+1;
   SE.lamp(kind); vib(kind==="rainbow"?[80,40,80,40,80,40,300]:[80,40,80,40,160]);
   if(!calm()){
     flashA=kind==="rainbow"?0.55:0.4; const c=centerOf($("lamp")), rainbow=kind==="rainbow";
@@ -892,7 +920,7 @@ function settle(){
   const medals=s.medals+s.bet, back=medals*YEN_PER_MEDAL, net=back-s.invest;
   const rec={t:Date.now(),mode:"play",setting:s.setting,omakase:s.omakase,invest:s.invest,medals,net,games:s.games,big:s.big,reg:s.reg,maxHama:Math.max(s.maxHama,s.since),minNet:Math.min(s.minNet,net)};
   if(s.games>0) S.history.push(rec);
-  S.session=null; phase="idle"; game=null; BGM.stop(); cancelAnimationFrame(bonusTimer); $("bonusOv").hidden=true;
+  S.session=null; phase="idle"; game=null; BGM.stop(); if(auto) setAuto(0); cancelAnimationFrame(bonusTimer); $("bonusOv").hidden=true;
   save(); renderPlay();
   openSheet("<h2>精算</h2>"+resultHtml(rec,true)+"<button class='btn primary' data-act='close'>とじる</button>");
 }
@@ -1088,6 +1116,33 @@ function updateFx(dt){
   }
 }
 
+/* ===== オート ===== */
+let auto=0, autoAt=0, autoPrev="";
+function setAuto(v){
+  auto=v; autoAt=performance.now()+250; autoPrev="";
+  const b=$("btnAuto"); if(!b) return;
+  b.classList.toggle("on",v>0); b.classList.toggle("fast",v===2);
+  $("autoLbl").textContent=v===2?"FAST":v===1?"ON":"OFF";
+  if(S.session&&tab==="play") renderPlay();
+}
+function autoTick(now){
+  if(!auto) return; const s=S.session;
+  if(!s||tab!=="play"){ setAuto(0); return; }
+  if(!$("sheetWrap").hidden) return;
+  const q=auto===2?0.4:1;
+  if(phase!==autoPrev){ autoPrev=phase; if(phase==="idle"||phase==="ready") autoAt=Math.max(autoAt,now+(now<flashUntil?850:380)*q); return; }
+  if(now<autoAt||lampHold) return;
+  if(phase==="idle"){
+    if(s.medals<3&&!s.bonus){ if(s.money>=LEND_YEN){ lend(); autoAt=now+600*q; } else setAuto(0); return; }
+    bet(); autoAt=now+260*q;
+  }else if(phase==="ready"){ lever(); autoAt=now+480*q; }
+  else if(phase==="spin"){
+    const i=reels.findIndex(r=>r.spin&&r.target==null);
+    if(i>=0){ stopReel(i); autoAt=now+320*q; }
+  }
+}
+$("btnAuto").addEventListener("pointerdown",e=>{ e.preventDefault(); audio(); setAuto((auto+1)%3); });
+
 const SPEED=N/0.75;
 let last=performance.now(), dispMedals=0;
 function loop(now){
@@ -1097,6 +1152,7 @@ function loop(now){
 let loopErr=false;
 function step(now){
   const dt=Math.min(0.05,(now-last)/1000||0); last=now;
+  autoTick(now);
   if(phase==="spin"){
     let moving=false;
     for(let i=0;i<3;i++){
@@ -1262,7 +1318,7 @@ function closeSheet(){ $("sheetWrap").hidden=true; $("sheet").innerHTML=""; }
 function helpHtml(){
   return "<h2>あそびかた</h2>"
     +"<p>1回まわすのにメダルを3枚（60円ぶん）使います。</p>"
-    +"<p>① 「1,000円で46枚借りる」でメダルを借りる<br>② 「MAX BET」で3枚入れる<br>③ 左の赤いレバーを押す（当たりかどうかは、ここで決まります）<br>④ 青く光るボタンを左から3つ押して止める<br>⑤ ランプが光ったらボーナス確定。そのあと1〜3ゲームほどで7がそろいます<br>⑥ ボーナス中は曲が流れ、毎ゲームぶどうがそろって15枚もらえます</p>"
+    +"<p>① 「1,000円で46枚借りる」でメダルを借りる<br>② 「MAX BET」で3枚入れる<br>③ 左の赤いレバーを押す（当たりかどうかは、ここで決まります）<br>④ 青く光るボタンを左から3つ押して止める<br>⑤ ランプが光ったらボーナス確定。そのあと1〜3ゲームほどで7がそろいます<br>⑥ ボーナス中は曲が流れ、毎ゲームぶどうがそろって15枚もらえます<br>「AUTO」を押すと、自動で回し続けます。押すたびに、オート → 高速 → 切 と変わります。メダルが切れると1,000円ずつ自動で借り、お金がなくなると止まります</p>"
     +"<table><tr><th>横3列・斜め2本のどれかにそろうと</th><th>もらえる</th></tr>"
     +"<tr><td>7・7・7（BIG）</td><td>20ゲームで約240枚</td></tr><tr><td>7・7・BAR（REG）</td><td>8ゲームで約96枚</td></tr>"
     +"<tr><td>🍇🍇🍇 ぶどう</td><td>8枚</td></tr><tr><td>🔔🔔🔔 ベル</td><td>14枚</td></tr>"
@@ -1274,6 +1330,7 @@ function helpHtml(){
 
 /* ===== 画面の切り替えと操作 ===== */
 function showTab(t){
+  if(t!=="play"&&auto) setAuto(0);
   tab=t;
   ["play","fast","log","set"].forEach(k=>{ $("pg-"+k).hidden=k!==t; });
   document.querySelectorAll(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
