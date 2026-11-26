@@ -184,6 +184,16 @@ main{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;paddin
 .mbtn.stop:disabled::after{background:rgba(255,255,255,.18)}
 .ctrl{margin-top:16px}
 
+/* ボーナス確定の帯とランプの光り方 */
+#fixRibbon{position:absolute;left:0;right:0;top:0;text-align:center;font-weight:900;font-size:14px;letter-spacing:.18em;padding:3px 0;color:#3a2100;background:linear-gradient(90deg,#ffb52e,#fff3b0,#ffd24a,#fff3b0,#ffb52e);background-size:200% 100%;animation:rb 1.2s linear infinite;box-shadow:0 2px 10px rgba(255,190,60,.8);pointer-events:none}
+.lamp.on.blink{animation:lampPop .45s cubic-bezier(.2,1.7,.4,1),lampBlink .32s steps(2,jump-none) .45s infinite}
+@keyframes lampBlink{from{opacity:1}to{opacity:.35}}
+.pop.fix{top:50%;font-size:44px;color:#fff6c0;-webkit-text-stroke:2px #b3261e;text-shadow:0 3px 0 #7a0010,0 0 22px rgba(255,200,60,1);animation:fixPop 1.4s cubic-bezier(.2,1.6,.4,1) forwards}
+@keyframes fixPop{0%{opacity:0;transform:translate(-50%,-50%) scale(3) rotate(-8deg)}18%{opacity:1;transform:translate(-50%,-50%) scale(1) rotate(-4deg)}75%{opacity:1;transform:translate(-50%,-50%) scale(1.06) rotate(-4deg)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.3) rotate(-4deg)}}
+#winMsg{font-size:13px;line-height:1.3;max-height:42px;overflow:hidden}
+.lampRow{height:44px}
+.hint{font-size:13px;line-height:1.35;height:46px;min-height:0;padding:4px 12px;overflow:hidden}
+
 /* 一覧・結果 */
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .grid2 div{background:var(--chip);border-radius:10px;padding:8px 10px}
@@ -265,7 +275,7 @@ body{position:absolute;top:0;right:0;bottom:0;left:0;height:auto;padding-top:env
         <div class="win">
           <div class="side l"><i id="l3">3</i><i id="l2">2</i><i id="l1">1</i><span>BET</span></div>
           <div class="reelBox" id="reelBox">
-            <canvas id="reels"></canvas><div class="glass"></div>
+            <canvas id="reels"></canvas><div class="glass"></div><div id="fixRibbon" hidden>★ ボーナス確定 ★</div>
             <div id="bonusOv" hidden><div class="bt" id="bonusT"></div><div class="bn" id="bonusN"></div><div class="bs" id="bonusS"></div></div>
           </div>
           <div class="side r"><i id="lpStart">START</i><i id="lpReplay">REPLAY</i><i id="lpInsert">INSERT</i></div>
@@ -390,25 +400,65 @@ const N=21;
 const STRIPS=["GRBCLGRSBGRLCBGRSLGRS","BGSRLGCRBGSRLGBRSGCRL","GLRBGSRLGCRBGSRLGBRSC"].map(s=>s.split(""));
 const TARGET={BIG:"SSS",REG:"SSB",G:"GGG",R:"RRR",L:"LLL"};
 function sym(r,i){ return STRIPS[r][((Math.round(i)%N)+N)%N]; }
-function winOf(c){
-  if(c[0]==="S"&&c[1]==="S"&&c[2]==="S") return "BIG";
-  if(c[0]==="S"&&c[1]==="S"&&c[2]==="B") return "REG";
-  if(c[0]===c[1]&&c[1]===c[2]&&"GRL".indexOf(c[0])>=0) return c[0];
+/* 判定は5ライン：中段・上段・下段・右下がり・右上がり（行は +1 が上段、-1 が下段） */
+const LINES=[[0,0,0],[1,1,1],[-1,-1,-1],[1,0,-1],[-1,0,1]];
+function comboOf(a,b,c){
+  if(a==="S"&&b==="S"&&c==="S") return "BIG";
+  if(a==="S"&&b==="S"&&c==="B") return "REG";
+  if(a===b&&b===c&&(a==="G"||a==="R"||a==="L")) return a;
   return null;
 }
+function winsOf(p){
+  const out=[];
+  for(let i=0;i<5;i++){ const L=LINES[i], w=comboOf(sym(0,p[0]+L[0]),sym(1,p[1]+L[1]),sym(2,p[2]+L[2])); if(w) out.push({role:w,line:i}); }
+  return out;
+}
+function winOf(p){ const w=winsOf(p); return w.length?w[0]:null; }
 function leftCherry(p){ return sym(0,p-1)==="C"||sym(0,p)==="C"||sym(0,p+1)==="C"; }
-/* 押した位置 base から maxSlip コマまでの中で、止める位置を決める */
+/* 止まっている分だけで、決まりに反していないか */
+function legal(st,flag){
+  if(st[0]!=null&&flag!=="C"&&leftCherry(st[0])) return false;
+  if(st[0]!=null&&st[1]!=null&&st[2]!=null){ const w=winsOf(st); for(let i=0;i<w.length;i++) if(w[i].role!==flag) return false; }
+  return true;
+}
+/* mode "safe"：残りをどこで押されても、決まりどおりに止められるか
+   mode "sure"：残りをどこで押されても、狙いの役をそろえられるか */
+const ctlMemo=new Map();
+function can(st,flag,slip,mode){
+  if(st[0]!=null&&st[1]!=null&&st[2]!=null) return mode==="safe"?true:winsOf(st).some(x=>x.role===flag);
+  const key=mode+flag+slip+"|"+st[0]+","+st[1]+","+st[2];
+  if(ctlMemo.has(key)) return ctlMemo.get(key);
+  const B=slip>=N-1?1:N; let ok=true;
+  outer: for(let r=0;r<3;r++){
+    if(st[r]!=null) continue;
+    for(let b=0;b<B;b++){
+      let any=false;
+      for(let k=0;k<=slip;k++){ const nx=st.slice(); nx[r]=(b+k)%N; if(legal(nx,flag)&&can(nx,flag,slip,mode)){ any=true; break; } }
+      if(!any){ ok=false; break outer; }
+    }
+  }
+  ctlMemo.set(key,ok); return ok;
+}
+function alive(st,flag){
+  const T=TARGET[flag]; if(!T) return 0; let n=0;
+  for(let i=0;i<5;i++){ const L=LINES[i]; let ok=true; for(let r=0;r<3;r++){ if(st[r]!=null&&sym(r,st[r]+L[r])!==T[r]){ ok=false; break; } } if(ok) n++; }
+  return n;
+}
+/* 押した位置 base から maxSlip コマまでの中で、止める位置を決める。stops は止まった（止まる予定の）位置か null */
 function chooseStop(reel,base,flag,stops,maxSlip){
-  let best=0,bestScore=-Infinity;
+  const wantSure=!!TARGET[flag]&&(maxSlip>=N-1||flag==="G"||flag==="R");
+  let best=-1,bestScore=-Infinity;
   for(let k=0;k<=maxSlip;k++){
-    const p=base+k, s=sym(reel,p); let sc=0;
-    if(reel===0){ const ch=leftCherry(p); if(ch&&flag!=="C") sc-=1e6; else if(ch) sc+=10; }
-    const cs=[0,1,2].map(i=>i===reel?s:(stops[i]==null?null:sym(i,stops[i])));
-    if(cs[0]&&cs[1]&&cs[2]){ const w=winOf(cs); if(w&&w!==flag) sc-=1e6; }
-    if(TARGET[flag]&&TARGET[flag][reel]===s) sc+=10;
+    const p=((base+k)%N+N)%N, nx=stops.slice(); nx[reel]=p;
+    if(!legal(nx,flag)) continue;
+    let sc=-k*0.01;
+    if(!can(nx,flag,maxSlip,"safe")) sc-=1000;
+    if(wantSure&&can(nx,flag,maxSlip,"sure")) sc+=500;
+    sc+=alive(nx,flag)*10;
+    if(flag==="C"&&reel===0&&leftCherry(p)) sc+=50;
     if(sc>bestScore){ bestScore=sc; best=k; }
   }
-  return base+best;
+  return base+(best<0?0:best);
 }
 
 /* ===== 保存 ===== */
@@ -423,17 +473,19 @@ function validSession(s){
     &&isInt(s.setting,1,6)&&isInt(s.games,0,1e8)&&isInt(s.since,0,1e8)&&isInt(s.big,0,1e6)&&isInt(s.reg,0,1e6)
     &&isInt(s.maxHama,0,1e8)&&Number.isFinite(s.minNet)&&(s.pending===null||s.pending==="BIG"||s.pending==="REG")
     &&typeof s.lamp==="boolean"&&(s.bet===0||s.bet===3)&&typeof s.omakase==="boolean"&&typeof s.replay==="boolean"
-    &&Array.isArray(s.reels)&&s.reels.length===3&&s.reels.every(v=>isInt(v,0,N-1))&&Number.isFinite(s.startedAt);
+    &&Array.isArray(s.reels)&&s.reels.length===3&&s.reels.every(v=>isInt(v,0,N-1))&&Number.isFinite(s.startedAt)
+    &&(s.bonus==null||(typeof s.bonus==="object"&&(s.bonus.type==="BIG"||s.bonus.type==="REG")&&isInt(s.bonus.left,1,20)&&isInt(s.bonus.net,0,1000)));
 }
 function sanitize(raw){
-  const d={v:1,theme:"auto",assist:true,sound:true,vib:true,fx:true,session:null,history:[],lastBackup:0,created:Date.now()};
+  const d={v:1,theme:"auto",assist:true,sound:true,vib:true,fx:true,seen:{gold:0,blink:0,late:0,rainbow:0,pre:0},session:null,history:[],lastBackup:0,created:Date.now()};
   if(!raw||typeof raw!=="object") return d;
   if(raw.theme==="auto"||raw.theme==="light"||raw.theme==="dark") d.theme=raw.theme;
   ["assist","sound","vib","fx"].forEach(k=>{ if(typeof raw[k]==="boolean") d[k]=raw[k]; });
   if(Number.isFinite(raw.lastBackup)) d.lastBackup=raw.lastBackup;
   if(Number.isFinite(raw.created)) d.created=raw.created;
   if(Array.isArray(raw.history)) d.history=raw.history.filter(validRec).slice(-300).map(r=>({t:r.t,mode:r.mode,setting:r.setting,omakase:!!r.omakase,invest:r.invest,medals:r.medals,net:r.net,games:r.games,big:r.big,reg:r.reg,maxHama:r.maxHama,minNet:r.minNet}));
-  if(validSession(raw.session)) d.session=raw.session;
+  if(validSession(raw.session)){ d.session=raw.session; if(d.session.bonus===undefined) d.session.bonus=null; }
+  if(raw.seen&&typeof raw.seen==="object") ["gold","blink","late","rainbow","pre"].forEach(k=>{ if(isInt(raw.seen[k],0,1e7)) d.seen[k]=raw.seen[k]; });
   return d;
 }
 let S, saveWarned=false;
@@ -464,35 +516,95 @@ function applyTheme(){
 function vib(p){ if(S.vib&&navigator.vibrate){ try{ navigator.vibrate(p); }catch(_){ } } }
 
 /* ===== 音 ===== */
-let AC=null;
+let AC=null, MG=null, noiseBuf=null;
 function audio(){
   if(AC) return AC;
-  try{ const C=window.AudioContext||window.webkitAudioContext; if(C) AC=new C(); }catch(_){ }
+  try{
+    const C=window.AudioContext||window.webkitAudioContext;
+    if(C){
+      AC=new C(); MG=AC.createGain(); MG.gain.value=0.9;
+      const cp=AC.createDynamicsCompressor(); MG.connect(cp); cp.connect(AC.destination);
+      noiseBuf=AC.createBuffer(1,AC.sampleRate,AC.sampleRate); const d=noiseBuf.getChannelData(0); for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+    }
+  }catch(_){ AC=null; }
   return AC;
 }
-function tone(freq,dur,type,vol,delay){
-  if(!S.sound) return; const a=audio(); if(!a) return;
+function ready(){ if(!S.sound) return null; const a=audio(); if(!a) return null; try{ if(a.state==="suspended") a.resume(); }catch(_){ } return a; }
+function toneAt(t,freq,dur,type,vol,slideTo){
+  const a=AC; if(!a||!S.sound) return;
   try{
-    if(a.state==="suspended") a.resume();
-    const t=a.currentTime+(delay||0), o=a.createOscillator(), g=a.createGain();
-    o.type=type||"sine"; o.frequency.setValueAtTime(freq,t);
-    g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(vol||0.12,t+0.01); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
-    o.connect(g); g.connect(a.destination); o.start(t); o.stop(t+dur+0.02);
+    const o=a.createOscillator(), g=a.createGain();
+    o.type=type||"sine"; o.frequency.setValueAtTime(freq,t); if(slideTo) o.frequency.exponentialRampToValueAtTime(slideTo,t+dur);
+    g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(vol||0.1,t+0.008); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(MG); o.start(t); o.stop(t+dur+0.03);
   }catch(_){ }
 }
+function noiseAt(t,dur,vol,hp,lp){
+  const a=AC; if(!a||!S.sound||!noiseBuf) return;
+  try{
+    const src=a.createBufferSource(), g=a.createGain(); src.buffer=noiseBuf; let node=src;
+    if(hp){ const f=a.createBiquadFilter(); f.type="highpass"; f.frequency.value=hp; node.connect(f); node=f; }
+    if(lp){ const f=a.createBiquadFilter(); f.type="lowpass"; f.frequency.value=lp; node.connect(f); node=f; }
+    g.gain.setValueAtTime(vol||0.1,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    node.connect(g); g.connect(MG); src.start(t,Math.random()*0.5,dur+0.02);
+  }catch(_){ }
+}
+function tone(freq,dur,type,vol,delay,slideTo){ const a=ready(); if(a) toneAt(a.currentTime+(delay||0),freq,dur,type,vol,slideTo); }
+function noise(dur,vol,delay,hp,lp){ const a=ready(); if(a) noiseAt(a.currentTime+(delay||0),dur,vol,hp,lp); }
+function coin(d){ tone(2637,0.1,"sine",0.07,d); tone(3951,0.08,"sine",0.04,d+0.005); noise(0.03,0.05,d,3500); }
+function chord(fs,dur,type,vol,d){ fs.forEach(f=>tone(f,dur,type,vol,d)); }
 const SE={
-  bet(){ tone(660,0.06,"square",0.05); tone(880,0.06,"square",0.05,0.07); },
-  lever(){ tone(140,0.12,"sawtooth",0.1); },
-  stop(){ tone(200,0.05,"square",0.08); },
-  pay(n){ for(let i=0;i<Math.min(n,8);i++) tone(1200,0.04,"triangle",0.07,i*0.05); },
-  replay(){ tone(784,0.08,"triangle",0.08); tone(988,0.1,"triangle",0.08,0.09); },
-  lamp(rainbow){ const m=rainbow?[523,659,784,1047,1319,1568,2093,2637,3136]:[784,1047,1319,1568,2093]; m.forEach((f,i)=>{ tone(f,0.24,"triangle",0.13,i*0.065); tone(f*2,0.12,"sine",0.04,i*0.065+0.02); }); tone(m[m.length-1],0.7,"sine",0.08,m.length*0.065); },
-  bonus(bigOne){
-    const m=bigOne?[523,523,659,784,1047,784,1047,1319,1175,1047,1175,1319,1568,1319,1568,2093]:[523,659,784,1047,784,1047,1319,1568];
-    m.forEach((f,i)=>{ tone(f,0.2,"square",0.06,i*0.15); tone(f/2,0.2,"triangle",0.07,i*0.15); });
-    const end=m.length*0.15; [1047,1319,1568,2093].forEach(f=>tone(f,0.9,"triangle",0.06,end));
+  press(){ tone(1700,0.025,"square",0.03); },
+  bet(){ coin(0); coin(0.07); coin(0.14); },
+  lever(){ tone(170,0.13,"sine",0.3,0,55); noise(0.06,0.14,0,600,3200); [660,880,1320].forEach((f,i)=>tone(f,0.07,"triangle",0.07,0.06+i*0.05)); },
+  stop(){ tone(230,0.1,"sine",0.26,0,85); noise(0.03,0.12,0,1200,5000); },
+  pay(n){ [1319,1568,1319,1568,2093].forEach((f,i)=>tone(f,0.07,"square",0.05,i*0.06)); for(let i=0;i<Math.min(n,8);i++) coin(0.32+i*0.07); },
+  replay(){ [988,1319,988,1319,1568].forEach((f,i)=>tone(f,0.08,"triangle",0.08,i*0.07)); },
+  lamp(kind){
+    tone(120,0.4,"sine",0.45,0,38); noise(0.14,0.28,0,150,2600);
+    tone(500,0.55,"sawtooth",0.05,0.06,2600); tone(1000,0.55,"sine",0.11,0.06,5200);
+    const m=kind==="rainbow"?[1047,1319,1568,2093,2637,3136,4186,5274]:[1568,2093,2637,3136,4186];
+    m.forEach((f,i)=>{ tone(f,0.16,"triangle",0.11,0.5+i*0.06); tone(f*1.005,0.16,"sine",0.05,0.5+i*0.06); });
+    const e=0.5+m.length*0.06; chord([2093,2637,3136],0.9,"sine",0.06,e);
+    if(kind==="rainbow"||kind==="late"){ tone(700,0.6,"sawtooth",0.04,e,3400); chord([1047,1319,1568,2093],1.1,"triangle",0.05,e+0.3); }
+    if(kind==="pre"){ noise(0.25,0.12,0.05,4000); }
   },
-  lend(){ tone(440,0.05,"triangle",0.08); tone(554,0.08,"triangle",0.08,0.06); }
+  fanfare(big){
+    const seq=big?[[0,523,0.12],[0.15,523,0.12],[0.3,523,0.12],[0.45,659,0.22],[0.7,784,0.22],[0.95,1047,0.9]]:[[0,523,0.14],[0.18,659,0.14],[0.36,784,0.2],[0.6,1047,0.7]];
+    seq.forEach(n=>{ tone(n[1],n[2],"sawtooth",0.07,n[0]); tone(n[1]*1.26,n[2],"square",0.035,n[0]); tone(n[1]/2,n[2],"triangle",0.1,n[0]); });
+    const last=seq[seq.length-1][0];
+    tone(110,0.4,"sine",0.4,0,40); noise(0.5,0.16,0,5000); tone(110,0.5,"sine",0.4,last,40); noise(0.9,0.2,last,4500);
+    [2093,2637,3136,4186].forEach((f,i)=>tone(f,0.3,"sine",0.05,last+0.1+i*0.07));
+  },
+  bonusPay(){ [1047,1319,1568,2093].forEach((f,i)=>tone(f,0.07,"square",0.045,i*0.045)); for(let i=0;i<7;i++) coin(0.2+i*0.055); },
+  bonusEnd(){ [1568,1319,1047,1319,1568,2093].forEach((f,i)=>{ tone(f,0.16,"triangle",0.09,i*0.13); tone(f/2,0.16,"square",0.04,i*0.13); }); chord([1047,1319,1568,2093],1.2,"triangle",0.06,0.8); noise(0.8,0.12,0.8,5000); },
+  lend(){ coin(0); coin(0.09); tone(1568,0.12,"triangle",0.06,0.18); }
+};
+/* ボーナス中の曲（その場で鳴らす自作のループ） */
+const mtof=m=>440*Math.pow(2,(m-69)/12);
+const BGM={
+  on:false, timer:0, next:0, step:0, tr:0, spb:0.2,
+  MEL:[72,76,79,76,84,79,76,79, 77,81,84,81,89,84,81,84, 79,83,86,83,91,86,83,86, 84,79,76,79,84,0,84,0],
+  ROOT:[48,41,43,48],
+  start(kind){
+    this.stop(); const a=ready(); if(!a) return;
+    this.on=true; this.step=0; this.tr=kind==="BIG"?0:2; this.spb=60/(kind==="BIG"?152:136)/2; this.next=a.currentTime+0.06;
+    this.timer=setInterval(()=>this.tick(),50);
+  },
+  stop(){ this.on=false; clearInterval(this.timer); },
+  tick(){
+    const a=AC; if(!a||a.state!=="running"||!S.sound) return;
+    if(this.next<a.currentTime) this.next=a.currentTime+0.03;
+    while(this.next<a.currentTime+0.2){ this.play(this.step,this.next); this.step++; this.next+=this.spb; }
+  },
+  play(step,t){
+    const i=step%32, n=this.MEL[i], root=this.ROOT[(i>>3)]+this.tr, d=this.spb;
+    if(n){ toneAt(t,mtof(n+this.tr),d*0.9,"square",0.04); toneAt(t,mtof(n+this.tr-12),d*0.9,"triangle",0.035); }
+    toneAt(t,mtof(root+(i%2?12:0)),d*0.9,"triangle",0.1);
+    if(i%2===0) toneAt(t,150,0.1,"sine",0.22,50); else noiseAt(t,0.03,0.035,7000);
+    if(i%4===2) noiseAt(t,0.09,0.08,1800,7000);
+    if(i%8===0) toneAt(t,mtof(root+24+4),d*3.5,"sine",0.025);
+  }
 };
 document.addEventListener("visibilitychange",()=>{
   if(!AC) return;
@@ -543,9 +655,9 @@ function renderPlay(){
   ["l1","l2","l3"].forEach(id=>$(id).classList.toggle("on",s.bet===3||phase==="spin"));
   $("lpStart").classList.toggle("on",phase==="ready"); $("lpReplay").classList.toggle("on",s.replay); $("lpInsert").classList.toggle("on",phase==="idle");
   const lit=s.lamp&&!lampHold, mc=$("machine").classList;
-  $("lamp").classList.toggle("on",lit); $("lamp").classList.toggle("rainbow",lit&&lampRainbow);
-  mc.toggle("spin",phase==="spin"); mc.toggle("lit",lit&&phase!=="bonus"); mc.toggle("bonus",phase==="bonus");
-  const canBet=phase==="idle"&&s.medals>=3, canLever=phase==="ready";
+  $("lamp").classList.toggle("on",lit); ["rainbow","blink"].forEach(k=>$("lamp").classList.toggle(k,lit&&lampKind===k)); $("fixRibbon").hidden=!(lit&&(phase==="idle"||phase==="ready"));
+  mc.toggle("spin",phase==="spin"); mc.toggle("lit",lit&&phase!=="bonus"); mc.toggle("bonus",phase==="bonus"||!!s.bonus);
+  const canBet=phase==="idle"&&(s.medals>=3||!!s.bonus), canLever=phase==="ready";
   $("btnBet").disabled=!canBet; $("btnLever").disabled=!canLever;
   $("btnBet").classList.toggle("next",canBet); $("btnLever").classList.toggle("next",canLever);
   let nextStop=-1;
@@ -557,19 +669,22 @@ function renderPlay(){
   });
   $("btnLend").disabled=!(s.money>=LEND_YEN&&phase!=="bonus");
   let h;
-  if(phase==="bonus") h="当たりのメダルを受け取っています。";
+  if(phase==="bonus") h=s.bonus?"7がそろいました！ ボーナスが始まります。":"ボーナスが終わりました。";
+  else if(s.bonus&&phase==="spin") h="ボーナス中。ボタンを押すと、ぶどうがそろいます。";
+  else if(s.bonus) h="ボーナス中！ あと"+s.bonus.left+"ゲーム。"+(phase==="ready"?"レバーを押します。":"MAX BET を押します。");
   else if(phase==="spin") h=s.lamp?(S.assist?"7がそろうまで回します。ぶどうなどが出た回は、次のゲームに持ち越しです。":"7を狙って止めてください。そろうまで当たりは消えません。"):"左から順にボタンを押して止めます。";
   else if(phase==="ready") h=s.replay?"リプレイです。メダルを入れずに、もう1回レバーを押せます。":"レバーを押すと回ります。当たりかどうかは、この瞬間に決まります。";
   else if(s.medals<3&&s.money>=LEND_YEN) h="メダルがありません。「1,000円で46枚借りる」を押します。";
   else if(s.medals<3) h="お金もメダルもなくなりました。「やめて精算する」で結果を見ます。";
-  else if(lit) h="ランプが光りました。当たりです。MAX BET を押して、7がそろうまで回します。";
+  else if(lit) h="ランプが光りました。ボーナス確定です。MAX BET を押して、7がそろうまで回します。";
   else h="MAX BET でメダルを3枚入れます。";
   $("hint").textContent=h;
+  if(s.bonus&&phase!=="bonus") $("winMsg").textContent=(s.bonus.type==="BIG"?"BIG":"REG")+" BONUS　あと"+s.bonus.left+"G　＋"+s.bonus.net+"枚";
 }
 function startSession(){
   const omakase=pick.setting===0;
   S.session={money:pick.money,startMoney:pick.money,invest:0,medals:0,setting:omakase?pickOmakase():pick.setting,omakase,
-    games:0,since:0,big:0,reg:0,maxHama:0,minNet:0,pending:null,lamp:false,bet:0,replay:false,
+    games:0,since:0,big:0,reg:0,maxHama:0,minNet:0,pending:null,lamp:false,bet:0,replay:false,bonus:null,
     reels:[Math.floor(Math.random()*N),Math.floor(Math.random()*N),Math.floor(Math.random()*N)],startedAt:Date.now()};
   phase="idle"; syncReels(); save(); renderPlay(); resizeReels();
 }
@@ -581,94 +696,129 @@ function lend(){
   SE.lend(); save(); renderPlay();
 }
 function bet(){
-  const s=S.session; if(!s||phase!=="idle"||s.medals<3) return;
-  s.medals-=3; s.bet=3; lastPay=0; phase="ready"; $("winMsg").textContent=""; SE.bet(); save(); renderPlay();
+  const s=S.session; if(!s||phase!=="idle"||(s.medals<3&&!s.bonus)) return;
+  s.medals-=Math.min(3,s.medals); s.bet=3; lastPay=0; phase="ready"; $("winMsg").textContent=""; SE.bet(); save(); renderPlay();
 }
+const BIG_GAMES=20, REG_GAMES=8, BONUS_PAY=15;   // 1ゲームで 3枚入れて15枚戻る → BIG +240枚、REG +96枚
+const KIND_NAME={gold:"金色に点灯",blink:"点滅",late:"おくれて点灯",rainbow:"虹色（プレミアム）",pre:"レバーでいきなり点灯"};
+const KIND_MSG={gold:"ボーナス確定！",blink:"点滅！ ボーナス確定！",late:"…おくれて点灯！ ボーナス確定！",rainbow:"虹色！ プレミアム点灯！",pre:"レバーでいきなり点灯！"};
+function pickKind(){ const r=Math.random()*100; return r<8?"rainbow":r<18?"late":r<30?"blink":"gold"; }
 function lever(){
   const s=S.session; if(!s||phase!=="ready") return;
-  s.games++; s.since++;
-  if(s.pending&&!s.lamp) s.lamp=true;
-  const f=draw(s.setting,s.pending,Math.random);
   game={eff:"N",lightAfter:false};
-  if(f==="BIG"||f==="REG"){
-    s.pending=f;
-    if(Math.random()<PRE_LAMP){ s.lamp=true; game.eff=f; lampOn(); }
-    else game.lightAfter=true;
-  }else if(f==="N"){ if(s.pending&&s.lamp) game.eff=s.pending; }
-  else game.eff=f;
+  if(s.bonus){ game.eff="G"; if(!BGM.on) BGM.start(s.bonus.type); }
+  else{
+    s.games++; s.since++;
+    if(s.pending&&!s.lamp) s.lamp=true;
+    const f=draw(s.setting,s.pending,Math.random);
+    if(f==="BIG"||f==="REG"){
+      s.pending=f;
+      if(Math.random()<PRE_LAMP){ s.lamp=true; game.eff=f; lampOn("pre"); }
+      else game.lightAfter=true;
+    }else if(f==="N"){ if(s.pending&&s.lamp) game.eff=s.pending; }
+    else game.eff=f;
+  }
   for(let i=0;i<3;i++){ reels[i].spin=true; reels[i].target=null; }
-  phase="spin"; SE.lever(); renderPlay();
+  winLine=-1; phase="spin"; SE.lever(); renderPlay();
   const lb=$("btnLever"); lb.classList.add("pulled"); setTimeout(()=>lb.classList.remove("pulled"),200);
 }
 function stopReel(i){
   if(phase!=="spin"||!reels[i].spin||reels[i].target!=null) return;
-  const stops=reels.map(r=>r.spin?null:r.pos);
+  const stops=reels.map(r=>r.target!=null?((r.target%N)+N)%N:(r.spin?null:r.pos));
   reels[i].target=chooseStop(i,Math.ceil(reels[i].pos),game.eff,stops,S.assist?N-1:4);
-  renderPlay();
+  SE.press(); renderPlay();
 }
 function popText(txt,kind){
   const d=document.createElement("div"); d.className="pop"+(kind?" "+kind:""); d.textContent=txt;
-  $("reelBox").appendChild(d); setTimeout(()=>d.remove(),1000);
+  $("reelBox").appendChild(d); setTimeout(()=>d.remove(),kind==="fix"?1500:1000);
 }
 function bump(el){ el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump"); }
-let lampTimer=0, lampHold=false, lampRainbow=false;
-function lampOn(){
-  lampHold=false; lampRainbow=Math.random()<0.1;
-  SE.lamp(lampRainbow); vib([80,40,80,40,160]);
-  if(!calm()){ flashA=0.4; const c=centerOf($("lamp")); burst(c[0],c[1],lampRainbow?46:28,"star",lampRainbow); }
-  $("winMsg").textContent=lampRainbow?"虹色に光りました！ 当たりです！":"ランプが光りました！";
+let lampTimer=0, lampHold=false, lampKind="gold";
+function lampOn(kind){
+  lampHold=false; lampKind=kind; S.seen[kind]=(S.seen[kind]||0)+1;
+  SE.lamp(kind); vib(kind==="rainbow"?[80,40,80,40,80,40,300]:[80,40,80,40,160]);
+  if(!calm()){
+    flashA=kind==="rainbow"?0.55:0.4; const c=centerOf($("lamp")), rainbow=kind==="rainbow";
+    burst(c[0],c[1],rainbow?60:kind==="late"?44:30,"star",rainbow);
+    if(rainbow||kind==="late") confetti(24);
+    const pa=$("playArea"); pa.classList.remove("shake"); void pa.offsetWidth; pa.classList.add("shake");
+  }
+  popText(kind==="rainbow"?"プレミアム！":"確定！","fix");
+  $("winMsg").textContent=KIND_MSG[kind]+(S.seen[kind]===1?"（初めての光り方）":"");
   renderPlay();
 }
 function finishGame(){
-  const s=S.session, p=reels.map(r=>r.pos), w=winOf([sym(0,p[0]),sym(1,p[1]),sym(2,p[2])]);
-  s.reels=p.slice(); s.bet=0; s.replay=false;
-  if(w==="BIG"||w==="REG"){ startBonus(w); return; }
-  let msg=""; const rc=centerOf($("reels"));
-  if(w==="G"||w==="L"){
-    s.medals+=PAY[w]; msg=ROLE_NAME[w]+"　＋"+PAY[w]+"枚"; SE.pay(PAY[w]); flashUntil=performance.now()+800;
-    lastPay=PAY[w]; popText("＋"+PAY[w]); burst(rc[0],rc[1],w==="L"?16:9,"coin"); bump($("wMedals")); vib(20);
+  const s=S.session, p=reels.map(r=>r.pos); let w=winOf(p);
+  if(w&&(w.role==="BIG"||w.role==="REG")&&s.pending!==w.role) w=null;
+  s.reels=p.slice(); s.bet=0; s.replay=false; winLine=w?w.line:-1;
+  if(w&&(w.role==="BIG"||w.role==="REG")){ startBonus(w.role); return; }
+  let msg=""; const rc=centerOf($("reels")), now=performance.now();
+  if(w&&w.role==="G"&&s.bonus){
+    const b=s.bonus; s.medals+=BONUS_PAY; b.left--; b.net+=BONUS_PAY-3; lastPay=BONUS_PAY;
+    SE.bonusPay(); flashUntil=now+700; popText("＋"+BONUS_PAY); burst(rc[0],rc[1],14,"coin"); bump($("wMedals")); vib(20);
+    if(b.left<=0){ endBonus(); return; }
   }
-  else if(w==="R"){ s.replay=true; s.bet=3; msg="リプレイ（もう1回）"; SE.replay(); flashUntil=performance.now()+700; popText("もう1回！","blue"); }
+  else if(w&&(w.role==="G"||w.role==="L")){
+    s.medals+=PAY[w.role]; msg=ROLE_NAME[w.role]+"　＋"+PAY[w.role]+"枚"; SE.pay(PAY[w.role]); flashUntil=now+800;
+    lastPay=PAY[w.role]; popText("＋"+PAY[w.role]); burst(rc[0],rc[1],w.role==="L"?16:9,"coin"); bump($("wMedals")); vib(20);
+  }
+  else if(w&&w.role==="R"){ s.replay=true; s.bet=3; msg="リプレイ（もう1回）"; SE.replay(); flashUntil=now+700; popText("REPLAY","blue"); }
   else if(game.eff==="C"&&leftCherry(p[0])){ s.medals+=PAY.C; msg="チェリー　＋"+PAY.C+"枚"; SE.pay(PAY.C); lastPay=PAY.C; popText("＋"+PAY.C); burst(rc[0],rc[1],3,"coin"); bump($("wMedals")); }
-  if(game.lightAfter){ s.lamp=true; lampHold=true; clearTimeout(lampTimer); lampTimer=setTimeout(lampOn,calm()?0:450); }
+  if(game.lightAfter){
+    s.lamp=true; lampHold=true; const kind=pickKind(); clearTimeout(lampTimer);
+    lampTimer=setTimeout(()=>lampOn(kind),calm()?0:(kind==="late"?1500:450));
+  }
   if(netNow()<s.minNet) s.minNet=netNow();
   phase=s.replay?"ready":"idle"; game=null;
   $("winMsg").textContent=msg; save(); renderPlay();
 }
 let bonusTimer=0;
+function showOv(title,big,num,sub){
+  $("bonusT").textContent=title; $("bonusT").className="bt"+(big?" big":""); $("bonusN").textContent=num; $("bonusS").textContent=sub; $("bonusOv").hidden=false;
+}
 function startBonus(type){
-  const s=S.session, big=type==="BIG", gain=big?BIG_NET:REG_NET, base=s.medals;
+  const s=S.session, big=type==="BIG", n=big?BIG_GAMES:REG_GAMES;
   s.lamp=false; lampHold=false; clearTimeout(lampTimer); s.pending=null; if(big) s.big++; else s.reg++;
   if(s.since>s.maxHama) s.maxHama=s.since;
-  const waited=s.since; s.since=0; s.medals+=gain; game=null; phase="bonus"; save();
-  const dur=big?4600:3000;
-  SE.bonus(big); vib([120,60,120,60,300]); flashUntil=performance.now()+dur;
-  $("bonusT").textContent=big?"BIG BONUS":"REGULAR BONUS"; $("bonusT").className="bt"+(big?" big":"");
-  $("bonusS").textContent=(waited<=100&&s.big+s.reg>1?"100回転以内の連続当たり！ ":"")+waited+"回転めの当たり。本物の台では、ここから"+(big?"1分半":"30秒")+"ほどかけてメダルを出します。";
-  $("bonusOv").hidden=false; $("winMsg").textContent="";
+  const waited=s.since; s.since=0; s.bonus={type,left:n,net:0}; game=null; phase="bonus"; lastPay=0; save();
+  SE.fanfare(big); vib([120,60,120,60,300]); flashUntil=performance.now()+2400;
+  showOv(big?"BIG BONUS":"REGULAR BONUS",big,"START!",(waited<=100&&s.big+s.reg>1?"100回転以内の連続当たり！ ":"")+waited+"回転めの当たり。ここから"+n+"ゲーム、毎回ぶどうがそろって"+BONUS_PAY+"枚もらえます。");
+  $("winMsg").textContent="";
   if(!calm()){ flashA=0.5; const pa=$("playArea"); pa.classList.remove("shake"); void pa.offsetWidth; pa.classList.add("shake"); }
-  const t0=performance.now(); let lastFx=0, lastTick=0;
+  const t0=performance.now(); let lastFx=0;
   (function tick(now){
     if(phase!=="bonus"||S.session!==s) return;
-    const k=Math.min(1,(now-t0)/dur), v=Math.round(gain*(1-Math.pow(1-k,2)));
-    $("bonusN").textContent="＋"+v+"枚"; lastPay=v; setSeg("sgPay",v,3); dispMedals=base+v; showMedals();
-    if(now-lastFx>260&&k<0.95){ lastFx=now; confetti(big?14:7); const rc=centerOf($("reels")); burst(rc[0],rc[1],big?5:3,"coin"); }
-    if(now-lastTick>90&&k<1){ lastTick=now; tone(1400+Math.random()*300,0.03,"triangle",0.04); }
-    if(k<1) bonusTimer=requestAnimationFrame(tick);
+    if(now-lastFx>240){ lastFx=now; confetti(big?16:8); }
+    if(now-t0<2200) bonusTimer=requestAnimationFrame(tick);
   })(t0);
   renderPlay();
   setTimeout(()=>{
+    if(phase!=="bonus"||S.session!==s||!s.bonus) return;
+    $("bonusOv").hidden=true; phase="idle"; BGM.start(type); renderPlay();
+  },2600);
+}
+function endBonus(){
+  const s=S.session, b=s.bonus, big=b.type==="BIG", net=b.net;
+  s.bonus=null; game=null; phase="bonus"; if(netNow()<s.minNet) s.minNet=netNow(); save();
+  BGM.stop(); SE.bonusEnd();
+  showOv((big?"BIG":"REGULAR")+" BONUS 終了",false,"＋"+net+"枚","おつかれさまでした。ここからは、ふつうのゲームに戻ります。");
+  confetti(30);
+  renderPlay();
+  setTimeout(()=>{
     if(phase!=="bonus"||S.session!==s) return;
-    $("bonusOv").hidden=true; phase="idle"; dispMedals=s.medals;
-    $("winMsg").textContent=(big?"BIG":"REG")+"　＋"+gain+"枚"; bump($("wMedals")); renderPlay();
-  },dur+900);
+    $("bonusOv").hidden=true; phase="idle"; $("winMsg").textContent=(big?"BIG":"REG")+"で ＋"+net+"枚"; renderPlay();
+  },2800);
+}
+function seenHtml(){
+  return "<div class='card'><h2>見たランプの光り方</h2>"+Object.keys(KIND_NAME).map(k=>"<div class='log'><div>"+(S.seen[k]?KIND_NAME[k]:"？？？")+"</div><b>"+(S.seen[k]||0)+"回</b></div>").join("")
+    +"<p class='note'>光り方は5種類あります。どれで光っても、当たりの中身は同じです。</p></div>";
 }
 function settle(){
   const s=S.session; if(!s) return;
   const medals=s.medals+s.bet, back=medals*YEN_PER_MEDAL, net=back-s.invest;
   const rec={t:Date.now(),mode:"play",setting:s.setting,omakase:s.omakase,invest:s.invest,medals,net,games:s.games,big:s.big,reg:s.reg,maxHama:Math.max(s.maxHama,s.since),minNet:Math.min(s.minNet,net)};
   if(s.games>0) S.history.push(rec);
-  S.session=null; phase="idle"; game=null; cancelAnimationFrame(bonusTimer); $("bonusOv").hidden=true;
+  S.session=null; phase="idle"; game=null; BGM.stop(); cancelAnimationFrame(bonusTimer); $("bonusOv").hidden=true;
   save(); renderPlay();
   openSheet("<h2>精算</h2>"+resultHtml(rec,true)+"<button class='btn primary' data-act='close'>とじる</button>");
 }
@@ -692,7 +842,7 @@ const cv=$("reels"), ctx=cv.getContext("2d");
 let RW=300, RH=210, DPR=1;
 function resizeReels(){
   const box=cv.parentElement; const w=box.clientWidth||0; if(w<=0) return;
-  RW=w; RH=Math.round(Math.min(56,(w-12)/3*0.84)*3);
+  RW=w; RH=Math.round(Math.min(54,(w-12)/3*0.84)*3);
   DPR=Math.min(2,window.devicePixelRatio||1);
   cv.style.height=RH+"px"; cv.width=Math.round(RW*DPR); cv.height=Math.round(RH*DPR);
   ctx.setTransform(DPR,0,0,DPR,0,0);
@@ -777,8 +927,9 @@ function sprite(s,ch){
   }
   return sprCache[s];
 }
+let winLine=-1;
 function drawReels(now){
-  const gap=6, rw=(RW-gap*2)/3, ch=RH/3, win=now<flashUntil;
+  const gap=6, rw=(RW-gap*2)/3, ch=RH/3, win=now<flashUntil&&winLine>=0;
   ctx.clearRect(0,0,RW,RH);
   for(let r=0;r<3;r++){
     const R=reels[r], x=r*(rw+gap), n=Math.floor(R.pos), t=(now-R.stopAt)/1000;
@@ -793,19 +944,20 @@ function drawReels(now){
         ctx.globalAlpha=0.35; ctx.drawImage(sp.c,dx,cy-ch/2-ch*0.17,sp.w,ch);
         ctx.globalAlpha=0.85;
       }
-      let sc=1; if(win&&!R.spin&&Math.abs(i-R.pos)<0.01) sc=1+0.1*Math.abs(Math.sin(now/90));
+      let sc=1; if(win&&!R.spin&&Math.abs(i-R.pos-LINES[winLine][r])<0.01) sc=1+0.14*Math.abs(Math.sin(now/90));
       ctx.drawImage(sp.c,x+rw/2-sp.w*sc/2,cy-ch*sc/2,sp.w*sc,ch*sc); ctx.globalAlpha=1;
     }
-    if(win){ ctx.fillStyle="rgba(10,5,25,.45)"; ctx.fillRect(x,0,rw,ch); ctx.fillRect(x,ch*2,rw,ch); }
     const g=ctx.createLinearGradient(0,0,0,RH);
     g.addColorStop(0,"rgba(20,10,40,.5)"); g.addColorStop(0.2,"rgba(20,10,40,0)"); g.addColorStop(0.8,"rgba(20,10,40,0)"); g.addColorStop(1,"rgba(20,10,40,.5)");
     ctx.fillStyle=g; ctx.fillRect(x,0,rw,RH);
     ctx.restore();
   }
-  const fl=win&&Math.floor(now/120)%2===0;
-  if(fl){ ctx.fillStyle="rgba(255,205,60,.3)"; ctx.fillRect(0,ch,RW,ch); }
-  ctx.strokeStyle=fl?"#ffcf3a":"rgba(200,30,45,.45)"; ctx.lineWidth=2;
-  ctx.beginPath(); ctx.moveTo(0,RH/2); ctx.lineTo(RW,RH/2); ctx.stroke();
+  if(win){
+    const L=LINES[winLine], c0=rw/2, c2=RW-rw/2, y0=RH/2-L[0]*ch, y2=RH/2-L[2]*ch, sl=(y2-y0)/(c2-c0);
+    ctx.save(); ctx.lineCap="round"; ctx.shadowColor="#ffcf3a"; ctx.shadowBlur=12;
+    ctx.strokeStyle=Math.floor(now/120)%2?"#fff6c0":"#ffcf3a"; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(0,y0-sl*c0); ctx.lineTo(RW,y0+sl*(RW-c0)); ctx.stroke(); ctx.restore();
+  }
 }
 
 /* ===== 光・星・コイン・紙ふぶき ===== */
@@ -953,12 +1105,12 @@ function drawGraph(){
 /* ===== 記録 ===== */
 function renderLog(){
   const H=S.history;
-  if(!H.length){ $("logOut").innerHTML="<div class='card'><h2>記録</h2><p class='note'>まだ記録がありません。「打つ」で精算するか、「早送り」で1回やると、ここに残ります。</p></div>"; return; }
+  if(!H.length){ $("logOut").innerHTML="<div class='card'><h2>記録</h2><p class='note'>まだ記録がありません。「打つ」で精算するか、「早送り」で1回やると、ここに残ります。</p></div>"+seenHtml(); return; }
   const sum=H.reduce((a,r)=>a+r.net,0), win=H.filter(r=>r.net>0).length;
   $("logOut").innerHTML="<div class='card'><h2>これまでの合計</h2><div class='big "+cls(sum)+"'>"+syen(sum)+"</div>"
     +"<p class='note'>"+H.length+"回のうち、勝ったのは"+win+"回です。</p></div>"
     +"<div class='card'>"+H.slice().reverse().map(r=>"<div class='log'><div>"+dateStr(r.t)+"　"+(r.mode==="play"?"打つ":"早送り")
-      +"<small>設定"+r.setting+(r.omakase?"（おまかせ）":"")+"・"+fmt(r.games)+"回転・BIG"+r.big+" REG"+r.reg+"・使った"+yen(r.invest)+"</small></div><b class='"+cls(r.net)+"'>"+syen(r.net)+"</b></div>").join("")+"</div>";
+      +"<small>設定"+r.setting+(r.omakase?"（おまかせ）":"")+"・"+fmt(r.games)+"回転・BIG"+r.big+" REG"+r.reg+"・使った"+yen(r.invest)+"</small></div><b class='"+cls(r.net)+"'>"+syen(r.net)+"</b></div>").join("")+"</div>"+seenHtml();
 }
 
 /* ===== 設定 ===== */
@@ -981,7 +1133,7 @@ function renderSet(){
     +"<table><tr><th>設定</th><th>BIG</th><th>REG</th></tr>"+[0,1,2,3,4,5].map(i=>"<tr><td>"+(i+1)+"</td><td>1/"+BIG_P[i].toFixed(1)+"</td><td>1/"+REG_P[i].toFixed(1)+"</td></tr>").join("")+"</table>"
     +"<p class='note'>当たりの確率は、ホールでよく見かける機種「アイムジャグラーEX」（6号機）について公表されている値を手本にしました（出典：DMMぱちタウンの機種ページ、2026年11月26日に確認）。ぶどうの確率（1/6.02、設定6だけ1/5.78）も同じ出典です。設定1のぶどうは読み取れなかったので、1/6.02 と仮定しています。</p>"
     +"<p class='note'>次の値は目安で、公表値ではありません。リプレイ 1/7.3、チェリー 1/33（2枚）、ベル 1/1000（14枚）、BIG で増える枚数 約240枚、REG 約96枚、レバーを押した瞬間に光る割合 4回に1回、おまかせで出る設定の割合（設定1が40%、6が4%）。</p>"
-    +"<p class='note'>当たりのあとのメダルを出す時間は省いています。本物の台より、時間あたりの減り方・増え方が速く感じられます。</p>"
+    +"<p class='note'>ボーナスは、BIG が20ゲーム、REG が8ゲームで、毎ゲーム3枚入れて15枚戻る形にしています。増える枚数を合わせるための独自の作りで、実機の仕組みそのものではありません。判定は、横3列と斜め2本の5ラインです。ランプの光り方は5種類ありますが、見た目だけの違いです。</p>"
     +"<p class='note'>設定1〜3は、長く打つほどお金が減るように作られています。のめり込みにはご注意ください。</p></div>";
 }
 function backupSave(){
@@ -1013,7 +1165,7 @@ let restoreData=null;
 function doRestore(){
   if(!restoreData) return;
   {
-    S=restoreData; restoreData=null; phase=S.session&&S.session.bet===3?"ready":"idle"; game=null; $("bonusOv").hidden=true;
+    S=restoreData; restoreData=null; BGM.stop(); phase=S.session&&S.session.bet===3?"ready":"idle"; game=null; $("bonusOv").hidden=true;
     syncReels(); applyTheme(); save(); renderAll();
     openSheet("<h2>戻しました</h2><p>記録 "+S.history.length+"件を読み込みました。</p><button class='btn' data-act='close'>とじる</button>");
   }
@@ -1029,9 +1181,9 @@ function closeSheet(){ $("sheetWrap").hidden=true; $("sheet").innerHTML=""; }
 function helpHtml(){
   return "<h2>あそびかた</h2>"
     +"<p>1回まわすのにメダルを3枚（60円ぶん）使います。</p>"
-    +"<p>① 「1,000円で46枚借りる」でメダルを借りる<br>② 「MAX BET」で3枚入れる<br>③ 左の赤いレバーを押す（当たりかどうかは、ここで決まります）<br>④ 青く光るボタンを左から3つ押して止める<br>⑤ ランプが光ったら当たり。そのあと1〜3ゲームほどで7がそろいます</p>"
-    +"<table><tr><th>まん中の横1列にそろうと</th><th>もらえる</th></tr>"
-    +"<tr><td>7・7・7（BIG）</td><td>約240枚</td></tr><tr><td>7・7・BAR（REG）</td><td>約96枚</td></tr>"
+    +"<p>① 「1,000円で46枚借りる」でメダルを借りる<br>② 「MAX BET」で3枚入れる<br>③ 左の赤いレバーを押す（当たりかどうかは、ここで決まります）<br>④ 青く光るボタンを左から3つ押して止める<br>⑤ ランプが光ったらボーナス確定。そのあと1〜3ゲームほどで7がそろいます<br>⑥ ボーナス中は曲が流れ、毎ゲームぶどうがそろって15枚もらえます</p>"
+    +"<table><tr><th>横3列・斜め2本のどれかにそろうと</th><th>もらえる</th></tr>"
+    +"<tr><td>7・7・7（BIG）</td><td>20ゲームで約240枚</td></tr><tr><td>7・7・BAR（REG）</td><td>8ゲームで約96枚</td></tr>"
     +"<tr><td>🍇🍇🍇 ぶどう</td><td>8枚</td></tr><tr><td>🔔🔔🔔 ベル</td><td>14枚</td></tr>"
     +"<tr><td>REPLAY が3つ</td><td>もう1回無料</td></tr><tr><td>左の列に🍒（当選時）</td><td>2枚</td></tr></table>"
     +"<p class='note'>ふだんは、ぶどうとリプレイで少しずつ戻りながら、メダルが減っていきます。当たりは、平均すると130〜170回転に1回くらい。300回転以上こないこともよくあります。</p>"
@@ -1076,7 +1228,7 @@ document.addEventListener("click",e=>{
   else if(a==="quit"){
     if(phase==="spin"||phase==="bonus") return;
     const s=S.session; if(!s) return;
-    openSheet("<h2>やめて精算しますか？</h2><p>メダル"+fmt(s.medals+s.bet)+"枚をお金に戻して、結果を記録します。"+(s.lamp?"<br><b>ランプが光っています。当たりをそろえる前にやめると、当たりは無駄になります。</b>":"")+"</p>"
+    openSheet("<h2>やめて精算しますか？</h2><p>メダル"+fmt(s.medals+s.bet)+"枚をお金に戻して、結果を記録します。"+(s.bonus?"<br><b>ボーナスの途中です。やめると、残りのゲームは無くなります。</b>":"")+(s.lamp?"<br><b>ランプが光っています。当たりをそろえる前にやめると、当たりは無駄になります。</b>":"")+"</p>"
       +"<button class='btn primary' data-act='quitYes'>精算する</button><button class='btn' style='margin-top:8px' data-act='close'>まだ打つ</button>");
   }
   else if(a==="quitYes"){ closeSheet(); settle(); }
